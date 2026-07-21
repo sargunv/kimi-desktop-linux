@@ -42,9 +42,10 @@ each upstream release before changing bundled code.
       embeds upstream `icon.png` as the AppImage icon, `.DirIcon`, and hicolor
       entry. Multi-size hicolor polishing is optional; day-to-day icons work via the
       AppImage and host integration tools.
-- [ ] **Improve Open With.** Resolve MIME associations and application names from
-      desktop entries instead of offering only hardcoded file-manager and terminal
-      choices.
+- [x] **Improve Open With.** Best-effort: keep File manager / Terminal stubs and
+      list MIME handlers via `gio info` / `gio mime`, opening chosen apps with
+      `gio launch`. Works on modern desktops that ship GLib/`gio` (including
+      typical KDE installs).
 - [ ] **Add runtime dependency diagnostics.** Detect missing Git and other
       required host tools early. Remove the `lsof` dependency from stale WebBridge
       port recovery or report its absence clearly.

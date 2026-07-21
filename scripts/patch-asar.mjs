@@ -14,6 +14,107 @@ const workDir = await mkdtemp(join(tmpdir(), "kimi-asar-"));
 const linuxOpenTerminalShell =
   'dir=$1; kde_term=; command -v kreadconfig6 >/dev/null 2>&1 && kde_term=$(kreadconfig6 --file kdeglobals --group General --key TerminalApplication 2>/dev/null); [ -z "$kde_term" ] && command -v kreadconfig5 >/dev/null 2>&1 && kde_term=$(kreadconfig5 --file kdeglobals --group General --key TerminalApplication 2>/dev/null); case $kde_term in \'\'|*[!A-Za-z0-9._-]*) ;; *) command -v "$kde_term" >/dev/null 2>&1 && cd "$dir" && exec "$kde_term" ;; esac; if command -v xdg-terminal-exec >/dev/null 2>&1; then cd "$dir" && exec xdg-terminal-exec; fi; if command -v konsole >/dev/null 2>&1; then exec konsole --workdir "$dir"; fi; if command -v gnome-terminal >/dev/null 2>&1; then exec gnome-terminal --working-directory="$dir"; fi; if command -v xfce4-terminal >/dev/null 2>&1; then exec xfce4-terminal --working-directory="$dir"; fi; if command -v x-terminal-emulator >/dev/null 2>&1; then cd "$dir" && exec x-terminal-emulator; fi; if command -v xterm >/dev/null 2>&1; then cd "$dir" && exec xterm; fi; exit 127';
 
+const linuxOpenWithHelpers = `
+function linuxXdgApplicationDirs() {
+  const home = process.env.HOME || "";
+  const dataHome = process.env.XDG_DATA_HOME || (home ? join(home, ".local/share") : "");
+  const dataDirs = (process.env.XDG_DATA_DIRS || "/usr/local/share:/usr/share").split(":").filter(Boolean);
+  const dirs = [];
+  if (dataHome) {
+    dirs.push(join(dataHome, "applications"));
+  }
+  for (const dataDir of dataDirs) {
+    dirs.push(join(dataDir, "applications"));
+  }
+  return dirs;
+}
+function resolveLinuxDesktopFile(desktopId) {
+  if (typeof desktopId !== "string" || !/^[A-Za-z0-9][A-Za-z0-9._-]*\\.desktop$/.test(desktopId)) {
+    return null;
+  }
+  for (const dir of linuxXdgApplicationDirs()) {
+    const candidate = join(dir, desktopId);
+    if (existsSync$1(candidate)) {
+      return candidate;
+    }
+  }
+  return null;
+}
+function readLinuxDesktopName(desktopPath, fallback) {
+  try {
+    const named = readFileSync$1(desktopPath, "utf8").match(/^Name=(.+)$/m);
+    const name = named?.[1]?.trim();
+    if (name) {
+      return name;
+    }
+  } catch {
+  }
+  return fallback;
+}
+function execFileUtf8(command, args, timeoutMs = 3e3) {
+  return new Promise((resolve2) => {
+    execFile(command, args, { encoding: "utf8", timeout: timeoutMs, maxBuffer: 1024 * 1024 }, (error2, stdout) => {
+      resolve2(error2 ? "" : String(stdout ?? ""));
+    });
+  });
+}
+function parseGioMimeDesktopIds(output) {
+  const ids = [];
+  const seen = /* @__PURE__ */ new Set();
+  for (const line of output.split(/\\r?\\n/)) {
+    const trimmed = line.trim();
+    if (!trimmed) {
+      continue;
+    }
+    let desktopId = "";
+    if (trimmed.startsWith("Default application for")) {
+      const idx = trimmed.lastIndexOf(":");
+      desktopId = idx >= 0 ? trimmed.slice(idx + 1).trim() : "";
+    } else if (trimmed.endsWith(".desktop")) {
+      desktopId = trimmed;
+    }
+    if (!/^[A-Za-z0-9][A-Za-z0-9._-]*\\.desktop$/.test(desktopId) || seen.has(desktopId)) {
+      continue;
+    }
+    seen.add(desktopId);
+    ids.push(desktopId);
+  }
+  return ids;
+}
+async function listLinuxWorkbenchOpenWithApplications(path2, locale) {
+  const zh = isChineseLocale(locale);
+  const applications = [
+    { id: "file-manager", name: zh ? "文件管理器" : "File manager" },
+    { id: "terminal", name: zh ? "终端" : "Terminal" }
+  ];
+  const seen = /* @__PURE__ */ new Set(["file-manager", "terminal"]);
+  try {
+    const info = await execFileUtf8("gio", ["info", "-a", "standard::content-type", path2]);
+    const mime = info.match(/standard::content-type:\\s*(\\S+)/)?.[1];
+    if (mime) {
+      const mimeOut = await execFileUtf8("gio", ["mime", mime]);
+      for (const desktopId of parseGioMimeDesktopIds(mimeOut)) {
+        if (seen.has(desktopId)) {
+          continue;
+        }
+        const desktopPath = resolveLinuxDesktopFile(desktopId);
+        if (!desktopPath) {
+          continue;
+        }
+        seen.add(desktopId);
+        applications.push({
+          id: desktopId,
+          name: readLinuxDesktopName(desktopPath, desktopId.replace(/\\.desktop$/i, ""))
+        });
+      }
+    }
+  } catch (error2) {
+    KLogMain.warn(\`RightWorkbench\`, \`query Linux open-with applications failed: \${error2 instanceof Error ? error2.message : String(error2)}\`);
+  }
+  return applications;
+}
+`.trim();
+
 const replacements = [
   {
     description: "remove the redundant Linux application menu",
@@ -85,12 +186,27 @@ const replacements = [
       `        spawnProcess("sh", ["-c", ${JSON.stringify(linuxOpenTerminalShell)}, "kimi-open-terminal", workdir], { detached: true, stdio: "ignore" });\n        return { success: true };`,
   },
   {
-    description: "best-effort Linux terminal launch for Open With",
+    description: "inject Linux gio Open With helpers",
+    expected: 1,
+    from: "async function listWorkbenchOpenWithApplications(path2, isDirectory, locale) {",
+    to: `${linuxOpenWithHelpers}
+async function listWorkbenchOpenWithApplications(path2, isDirectory, locale) {`,
+  },
+  {
+    description: "list Linux Open With apps via gio mime handlers",
     expected: 1,
     from:
-      '    if (applicationId === "terminal") {\n      spawnDetached("x-terminal-emulator", ["--working-directory", targetDir]);\n      return true;\n    }',
+      '  if (process.platform === "linux") {\n    const zh = isChineseLocale(locale);\n    return [\n      { id: "file-manager", name: zh ? "文件管理器" : "File manager" },\n      { id: "terminal", name: zh ? "终端" : "Terminal" }\n    ];\n  }',
     to:
-      `    if (applicationId === "terminal") {\n      spawnDetached("sh", ["-c", ${JSON.stringify(linuxOpenTerminalShell)}, "kimi-open-terminal", targetDir]);\n      return true;\n    }`,
+      '  if (process.platform === "linux") {\n    return listLinuxWorkbenchOpenWithApplications(path2, locale);\n  }',
+  },
+  {
+    description: "open Linux Open With targets via gio launch",
+    expected: 1,
+    from:
+      '  if (process.platform === "linux") {\n    const targetDir = isDirectory ? path2 : dirname$2(path2);\n    if (applicationId === "file-manager") {\n      spawnDetached("xdg-open", [targetDir]);\n      return true;\n    }\n    if (applicationId === "terminal") {\n      spawnDetached("x-terminal-emulator", ["--working-directory", targetDir]);\n      return true;\n    }\n  }',
+    to:
+      `  if (process.platform === "linux") {\n    const targetDir = isDirectory ? path2 : dirname$2(path2);\n    if (applicationId === "file-manager") {\n      spawnDetached("xdg-open", [targetDir]);\n      return true;\n    }\n    if (applicationId === "terminal") {\n      spawnDetached("sh", ["-c", ${JSON.stringify(linuxOpenTerminalShell)}, "kimi-open-terminal", targetDir]);\n      return true;\n    }\n    const desktopPath = resolveLinuxDesktopFile(applicationId);\n    if (!desktopPath) {\n      return false;\n    }\n    spawnDetached("gio", ["launch", desktopPath, path2]);\n    return true;\n  }`,
   },
 ];
 
