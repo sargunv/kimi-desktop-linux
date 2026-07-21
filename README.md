@@ -26,6 +26,9 @@ Known limitations:
 - Only x86_64 Linux systems using glibc are supported. musl distributions are
   not supported.
 - PPT Tools and the selection toolbar are currently unavailable.
+- Closing the window hides Kimi in the system tray. That works on desktops with
+  tray support (including KDE); stock GNOME may need a tray extension to restore
+  or quit it.
 - The AppImage currently launches Electron without its Chromium sandbox. See
   [the security notes](SECURITY.md) before using higher-risk integrations.
 

@@ -58,14 +58,6 @@ const replacements = [
     to:
       "const npmDir = process.platform === 'win32'\n  ? path.join(runtimeDir, 'node_modules', 'npm')\n  : path.join(runtimeDir, 'vendor', 'npm')",
   },
-  {
-    description: "quit on window close on Linux instead of hiding to tray",
-    expected: 1,
-    from:
-      'this.baseWindow.on("close", (e) => {\n      if (!this.isQuitting) {\n        e.preventDefault();\n        if (this.baseWindow?.isFullScreen()) {\n          this.baseWindow.setFullScreen(false);\n        } else {\n          this.baseWindow?.hide();\n        }\n      }\n    });',
-    to:
-      'this.baseWindow.on("close", (e) => {\n      if (!this.isQuitting) {\n        if (process.platform === "linux") {\n          e.preventDefault();\n          app.quit();\n          return;\n        }\n        e.preventDefault();\n        if (this.baseWindow?.isFullScreen()) {\n          this.baseWindow.setFullScreen(false);\n        } else {\n          this.baseWindow?.hide();\n        }\n      }\n    });',
-  },
 ];
 
 function countOccurrences(haystack, needle) {
