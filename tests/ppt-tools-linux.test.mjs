@@ -74,6 +74,11 @@ test("ASAR patcher selects inside_install.sh for Linux PPT Tools requests", asyn
       '  if (process.platform === "linux") {\n    const targetDir = isDirectory ? path2 : dirname$2(path2);\n    if (applicationId === "file-manager") {\n      spawnDetached("xdg-open", [targetDir]);\n      return true;\n    }\n    if (applicationId === "terminal") {\n      spawnDetached("x-terminal-emulator", ["--working-directory", targetDir]);\n      return true;\n    }\n  }',
       "function readLaunchAtLogin() {\n  try {\n    return app.getLoginItemSettings().openAtLogin === true;\n  } catch (err) {\n    KLogMain.warn(TAG$x, `读取登录项失败: ${err instanceof Error ? err.message : String(err)}`);\n    return false;\n  }\n}",
       "function applyLaunchAtLogin(enabled) {\n  try {\n    app.setLoginItemSettings({ openAtLogin: enabled });\n  } catch (err) {\n    KLogMain.error(TAG$x, `设置登录项失败: ${err instanceof Error ? err.message : String(err)}`);\n  }\n}",
+      "function findPidByPort(port) {",
+      '    const out2 = execSync(`lsof -iTCP:${port} -sTCP:LISTEN -t`, {\n      timeout: 5e3,\n      encoding: "utf-8"\n    }).trim();\n    const pid = parseInt(out2.split("\\n")[0] ?? "", 10);\n    return Number.isFinite(pid) && pid > 0 ? pid : null;',
+      '    } else {\n      const output = execFileSync("lsof", ["-nP", `-iTCP:${port}`, "-sTCP:LISTEN", "-t"], { encoding: "utf8" });\n      for (const line of output.split(/\\r?\\n/)) {\n        const pid = Number(line.trim());\n        if (Number.isFinite(pid) && pid > 0) {\n          pids.add(pid);\n        }\n      }\n    }',
+      "function applyWorkSettingsOnStartup() {",
+      "  KLogMain.info(TAG$x, `启动重放: keepAwake=${persisted.keepAwake} selectionToolbar=${persisted.selectionToolbarEnabled}`);\n}",
     ].join("\n");
     await writeFile(join(sourceRoot, "out", "main", "index.js"), main);
     await writeFile(join(sourceRoot, "assets", "icon.png"), Buffer.from([137, 80, 78, 71]));
@@ -108,6 +113,10 @@ test("ASAR patcher selects inside_install.sh for Linux PPT Tools requests", asyn
       patched,
       /if \(process\.platform === "linux"\) \{\n      applyLinuxLaunchAtLogin\(enabled\);/,
     );
+    assert.match(patched, /function linuxFindListeningPidsOnPort\(port\)/);
+    assert.match(patched, /function warnLinuxRuntimeDepsOnStartup\(\)/);
+    assert.match(patched, /warnLinuxRuntimeDepsOnStartup\(\);/);
+    assert.match(patched, /linuxFindListeningPidsOnPort\(port\)/);
   } finally {
     await rm(directory, { recursive: true, force: true });
   }

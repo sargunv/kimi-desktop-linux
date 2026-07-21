@@ -46,9 +46,10 @@ each upstream release before changing bundled code.
       list MIME handlers via `gio info` / `gio mime`, opening chosen apps with
       `gio launch`. Works on modern desktops that ship GLib/`gio` (including
       typical KDE installs).
-- [ ] **Add runtime dependency diagnostics.** Detect missing Git and other
-      required host tools early. Remove the `lsof` dependency from stale WebBridge
-      port recovery or report its absence clearly.
+- [x] **Add runtime dependency diagnostics.** On Linux, replace WebBridge/
+      gateway port PID discovery (`lsof`) with `ss` from iproute2. At startup,
+      warn once via a native dialog and log when host `git` is missing from the
+      sanitised daimon PATH (`/usr/bin` etc.).
 - [ ] **Make unread state desktop-independent.** Linux launcher badges only work
       on Unity. Preserve unread state in the application UI when badges or a tray are
       unavailable.
