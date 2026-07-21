@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
     inputs:
       force:
-        description: Rebuild the current upstream version
+        description: Rebuild and bump the linux packaging revision
         type: boolean
         default: false
 
@@ -45,27 +45,28 @@ jobs:
           if [[ -f latest-linux-arm64.yml ]]; then
             arm_packaged="$(sed -n 's/^version: //p' latest-linux-arm64.yml)"
           fi
-          tag="kimi-work-v$upstream"
-          need_release=false
-          if [[ "$FORCE" == "true" ]]; then
-            need_release=true
-          elif [[ "$upstream" != "$packaged" ]]; then
-            need_release=true
-          elif [[ "$upstream" != "$arm_packaged" ]]; then
-            need_release=true
-          elif ! gh release view "$tag" >/dev/null 2>&1; then
-            need_release=true
-          else
-            assets="$(gh release view "$tag" --json assets --jq '.assets[].name')"
-            echo "$assets" | grep -qx "kimi-work-$upstream-x86_64.AppImage" || need_release=true
-            echo "$assets" | grep -qx "kimi-work-$upstream-aarch64.AppImage" || need_release=true
-            echo "$assets" | grep -qx "latest-linux.yml" || need_release=true
-            echo "$assets" | grep -qx "latest-linux-arm64.yml" || need_release=true
+          version="$(node scripts/linux-version.mjs next "$upstream" "$packaged" "${FORCE:-false}")"
+          if [[ -z "$version" ]]; then
+            # x64 feed is current; still rebuild if arm feed/assets lag or are missing.
+            if [[ "$arm_packaged" != "$packaged" ]]; then
+              version="$packaged"
+            elif ! gh release view "kimi-work-v$packaged" >/dev/null 2>&1; then
+              version="$packaged"
+            else
+              assets="$(gh release view "kimi-work-v$packaged" --json assets --jq '.assets[].name')"
+              echo "$assets" | grep -qx "kimi-work-$packaged-x86_64.AppImage" || version="$packaged"
+              echo "$assets" | grep -qx "kimi-work-$packaged-aarch64.AppImage" || version="$packaged"
+              echo "$assets" | grep -qx "latest-linux.yml" || version="$packaged"
+              echo "$assets" | grep -qx "latest-linux-arm64.yml" || version="$packaged"
+            fi
           fi
-          if [[ "$need_release" == "true" ]]; then
+          if [[ -n "$version" ]]; then
             echo "changed=true" >> "$GITHUB_OUTPUT"
+            echo "version=$version" >> "$GITHUB_OUTPUT"
+          else
+            echo "version=$packaged" >> "$GITHUB_OUTPUT"
           fi
-          echo "version=$upstream" >> "$GITHUB_OUTPUT"
+          echo "upstream=$upstream" >> "$GITHUB_OUTPUT"
 
   build:
     needs: check
@@ -76,8 +77,10 @@ jobs:
         include:
           - runner: ubuntu-24.04
             arch: x86_64
+            manifest: latest-linux.yml
           - runner: ubuntu-24.04-arm
             arch: aarch64
+            manifest: latest-linux-arm64.yml
     runs-on: ${{ matrix.runner }}
     name: build (${{ matrix.arch }})
     steps:
@@ -97,6 +100,7 @@ jobs:
       - name: Build AppImage
         env:
           GH_TOKEN: ${{ github.token }}
+          KIMI_LINUX_VERSION: ${{ needs.check.outputs.version }}
           KIMI_UPDATE_URL: https://github.com/${{ github.repository }}/releases/latest/download/
         run: |
           pnpm build
@@ -108,7 +112,7 @@ jobs:
           name: kimi-work-release-${{ matrix.arch }}
           path: |
             dist/*.AppImage
-            latest-linux*.yml
+            ${{ matrix.manifest }}
           if-no-files-found: error
 
   publish:
@@ -145,7 +149,7 @@ jobs:
           else
             gh release create "$tag" dist/*.AppImage latest-linux.yml latest-linux-arm64.yml \
               --latest --title "Kimi Work $VERSION for Linux" \
-              --notes "Unofficial Linux repackaging of Kimi Work $VERSION (x86_64 and aarch64)."
+              --notes "Unofficial Linux repackaging of Kimi Work ${VERSION%-linux.*} (packaging $VERSION; x86_64 and aarch64)."
           fi
 
       - name: Commit update metadata

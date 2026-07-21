@@ -59,16 +59,22 @@ Useful environment variables:
 - `KIMI_APP_DIR` selects the unpacked build packaged by `pnpm package`.
 - `KIMI_UPDATE_URL` embeds or overrides the AppImage update feed.
 - `KIMI_UPDATE_MANIFEST` overrides the update metadata output path.
+- `KIMI_LINUX_VERSION` sets the full Linux packaging version (`x.y.z-linux.N`)
+  embedded in the app and AppImage name. Defaults to `$upstream-linux.1`, or
+  `$upstream-linux.$KIMI_LINUX_REVISION` when that revision is set.
+- `KIMI_LINUX_REVISION` selects the packaging revision when
+  `KIMI_LINUX_VERSION` is unset (default `1`).
 - `KIMI_UPSTREAM_MANIFEST_URL` overrides Kimi's upstream update manifest for
   testing.
 
 ## Releases
 
 CI builds both architectures on pull requests and `main`. The scheduled Update
-workflow checks upstream daily. When Kimi publishes a new version, it builds
-x86_64 and aarch64 AppImages on native runners, publishes a
-`kimi-work-vVERSION` GitHub Release, and commits the matching
-`latest-linux.yml` and `latest-linux-arm64.yml` files.
+workflow checks upstream daily. Linux releases use `x.y.z-linux.N` versions
+(and `kimi-work-vVERSION` tags) so packaging-only rebuilds can bump `N` and be
+picked up by the AppImage updater. A new upstream `x.y.z` starts at `-linux.1`.
+Workflow `force` rebuilds bump `N`. Native x86_64 and aarch64 runners publish
+both AppImages and commit `latest-linux.yml` plus `latest-linux-arm64.yml`.
 
 The packaging approach was informed by
 [`codex-desktop-linux`](https://github.com/ilysenko/codex-desktop-linux).

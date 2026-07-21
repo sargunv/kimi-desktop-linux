@@ -14,6 +14,10 @@ built AppImage.
 Use `apply_patch` for source edits. Keep platform patches narrow and asserted in
 `scripts/patch-asar.mjs`; changed upstream code must fail closed.
 
+Linux AppImage versions are `x.y.z-linux.N` (see `scripts/linux-version.mjs`).
+Upstream bumps reset `N` to 1; force republishes increment `N` so the built-in
+updater can pick up packaging-only changes.
+
 ## Linux compatibility approach
 
 Prefer the smallest best-effort patch that works well on modern desktops

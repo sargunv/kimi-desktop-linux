@@ -132,11 +132,52 @@ const replacements = [
       '...process.platform === "darwin" ? { titleBarStyle: "hiddenInset" } : process.platform === "win32" ? { titleBarStyle: "hidden" } : {},',
   },
   {
-    description: "skip the unsupported upstream PPT installer on Linux",
+    description: "advertise the Linux PPT Tools inside_install.sh URL",
     expected: 1,
-    from: 'const arch = options.arch ?? process.arch;\n  if (platform === "win32" && arch !== "x64") {',
-    to:
-      'const arch = options.arch ?? process.arch;\n  if (platform === "linux") {\n    return { status: "skipped-unsupported", reason: "PPT Tools does not provide a Linux installer" };\n  }\n  if (platform === "win32" && arch !== "x64") {',
+    from: `const PPT_TOOLS_SCRIPT_URLS = {
+  posix: "https://www.kimi.com/neo-ppt/cli-install/install.sh",
+  windows: "https://www.kimi.com/neo-ppt/cli-install/install.ps1"
+};`,
+    to: `const PPT_TOOLS_SCRIPT_URLS = {
+  posix: "https://www.kimi.com/neo-ppt/cli-install/install.sh",
+  linux: "https://www.kimi.com/neo-ppt/cli-install/inside_install.sh",
+  windows: "https://www.kimi.com/neo-ppt/cli-install/install.ps1"
+};`,
+  },
+  {
+    description: "select inside_install.sh for PPT Tools on Linux",
+    expected: 1,
+    from: `  if (platform === "win32") {
+    return {
+      url: PPT_TOOLS_SCRIPT_URLS.windows,
+      sourcePolicy: PPT_TOOLS_SOURCE_POLICY,
+      scriptArgs: ["-InstallDir", installDir]
+    };
+  }
+  return {
+    url: PPT_TOOLS_SCRIPT_URLS.posix,
+    sourcePolicy: PPT_TOOLS_SOURCE_POLICY,
+    scriptArgs: [installDir]
+  };`,
+    to: `  if (platform === "win32") {
+    return {
+      url: PPT_TOOLS_SCRIPT_URLS.windows,
+      sourcePolicy: PPT_TOOLS_SOURCE_POLICY,
+      scriptArgs: ["-InstallDir", installDir]
+    };
+  }
+  if (platform === "linux") {
+    return {
+      url: PPT_TOOLS_SCRIPT_URLS.linux,
+      sourcePolicy: PPT_TOOLS_SOURCE_POLICY,
+      scriptArgs: [installDir]
+    };
+  }
+  return {
+    url: PPT_TOOLS_SCRIPT_URLS.posix,
+    sourcePolicy: PPT_TOOLS_SOURCE_POLICY,
+    scriptArgs: [installDir]
+  };`,
   },
   {
     description: "disable vendor updates for an unofficial Linux package",
@@ -147,12 +188,12 @@ const replacements = [
       'function setupAutoUpdater() {\n  if (process.platform === "linux" && !process.env.KIMI_UPDATE_URL) {\n    return;\n  }\n  if (isDev && !process.env.KIMI_UPDATE_URL) {',
   },
   {
-    description: "allow authenticated private Linux update feeds",
+    description: "enable Linux prerelease updates and optional private feed auth",
     expected: 1,
     from:
       'autoUpdater.forceDevUpdateConfig = true;\n    autoUpdater.setFeedURL({ provider: "generic", url: envUrl });',
     to:
-      'autoUpdater.forceDevUpdateConfig = true;\n    autoUpdater.setFeedURL({ provider: "generic", url: envUrl });\n    const updateToken = process.env.KIMI_UPDATE_TOKEN;\n    if (updateToken) {\n      autoUpdater.requestHeaders = { Authorization: `Bearer ${updateToken}`, Accept: "application/octet-stream" };\n    }',
+      'autoUpdater.forceDevUpdateConfig = true;\n    autoUpdater.allowPrerelease = true;\n    autoUpdater.setFeedURL({ provider: "generic", url: envUrl });\n    const updateToken = process.env.KIMI_UPDATE_TOKEN;\n    if (updateToken) {\n      autoUpdater.requestHeaders = { Authorization: `Bearer ${updateToken}`, Accept: "application/octet-stream" };\n    }',
   },
   {
     description: "use the bundled vendor npm layout on Linux managed commands",
@@ -230,6 +271,20 @@ try {
   }
 
   await writeFile(mainPath, main);
+
+  const linuxVersion = process.env.KIMI_LINUX_VERSION?.trim();
+  if (linuxVersion) {
+    if (!/^\d+\.\d+\.\d+-linux\.\d+$/.test(linuxVersion)) {
+      throw new Error(
+        `KIMI_LINUX_VERSION must look like x.y.z-linux.N (got ${linuxVersion})`,
+      );
+    }
+    const packagePath = join(workDir, "package.json");
+    const packageJson = JSON.parse(await readFile(packagePath, "utf8"));
+    packageJson.version = linuxVersion;
+    await writeFile(packagePath, `${JSON.stringify(packageJson, null, 2)}\n`);
+  }
+
   await asar.createPackage(workDir, outputAsar);
   await writeFile(outputIcon, await readFile(join(workDir, "assets", "icon.png")));
 } finally {

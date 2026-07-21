@@ -19,7 +19,9 @@ chmod +x kimi-work-*-aarch64.AppImage
 ```
 
 The AppImage checks this repository's public releases for updates. New upstream
-versions are checked daily and repackaged automatically.
+versions are checked daily and repackaged automatically. Linux packaging uses
+versions like `3.1.2-linux.1`; force-rebuilds bump the `-linux.N` revision so
+installed AppImages pick up patch-only changes.
 
 ## Status
 
@@ -30,7 +32,7 @@ Known limitations:
 
 - Only glibc Linux on x86_64 and aarch64 is supported. musl distributions are
   not supported.
-- PPT Tools and the selection toolbar are currently unavailable.
+- The selection toolbar is currently unavailable.
 - Closing the window hides Kimi in the system tray when Electron reports tray
   support (including KDE). If no tray is available, closing the window quits.
   Some hosts still report support but show no icon; that needs a desktop tray

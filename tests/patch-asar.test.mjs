@@ -15,6 +15,8 @@ test("ASAR patcher contains fail-closed replacement counts", async () => {
   assert.match(source, /Menu\.setApplicationMenu\(null\)/);
   assert.match(source, /process\.platform === \"linux\"/);
   assert.match(source, /KIMI_UPDATE_TOKEN/);
+  assert.match(source, /allowPrerelease = true/);
+  assert.match(source, /KIMI_LINUX_VERSION/);
   assert.match(source, /vendor', 'npm'/);
   assert.match(source, /Tray\.isSupported\(\)/);
   assert.match(source, /if \(!tray\)/);
@@ -24,14 +26,17 @@ test("ASAR patcher contains fail-closed replacement counts", async () => {
   assert.match(source, /TerminalApplication/);
   assert.match(source, /listLinuxWorkbenchOpenWithApplications/);
   assert.match(source, /gio", \["launch"/);
+  assert.match(source, /neo-ppt\/cli-install\/inside_install\.sh/);
+  assert.match(source, /PPT_TOOLS_SCRIPT_URLS\.linux/);
+  assert.doesNotMatch(source, /PPT Tools does not provide a Linux installer/);
 });
 
 test("Linux update manifest matches its AppImage", async () => {
   const directory = await mkdtemp(join(tmpdir(), "kimi-update-test-"));
   try {
     for (const filename of [
-      "kimi-work-1.2.3-x86_64.AppImage",
-      "kimi-work-1.2.3-aarch64.AppImage",
+      "kimi-work-1.2.3-linux.1-x86_64.AppImage",
+      "kimi-work-1.2.3-linux.1-aarch64.AppImage",
     ]) {
       const appImage = join(directory, filename);
       const manifest = join(directory, `${filename}.yml`);
@@ -39,11 +44,11 @@ test("Linux update manifest matches its AppImage", async () => {
       await execFileAsync(process.execPath, [
         new URL("../scripts/write-update-manifest.mjs", import.meta.url).pathname,
         appImage,
-        "1.2.3",
+        "1.2.3-linux.1",
         manifest,
       ]);
       const yaml = await readFile(manifest, "utf8");
-      assert.match(yaml, /^version: 1\.2\.3$/m);
+      assert.match(yaml, /^version: 1\.2\.3-linux\.1$/m);
       assert.match(yaml, new RegExp(`url: ${filename.replace(/\./g, "\\.")}`));
       assert.match(yaml, /size: 21/);
       assert.match(yaml, /sha512: [A-Za-z0-9+/]+=*/);

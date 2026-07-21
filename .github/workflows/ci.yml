@@ -20,8 +20,10 @@ jobs:
         include:
           - runner: ubuntu-24.04
             arch: x86_64
+            manifest: latest-linux.yml
           - runner: ubuntu-24.04-arm
             arch: aarch64
+            manifest: latest-linux-arm64.yml
     runs-on: ${{ matrix.runner }}
     name: build (${{ matrix.arch }})
     steps:
@@ -53,5 +55,5 @@ jobs:
           name: kimi-work-${{ matrix.arch }}
           path: |
             dist/*.AppImage
-            latest-linux*.yml
+            ${{ matrix.manifest }}
           if-no-files-found: error

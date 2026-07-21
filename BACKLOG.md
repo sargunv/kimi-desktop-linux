@@ -28,9 +28,9 @@ each upstream release before changing bundled code.
 
 ## Linux desktop integration
 
-- [ ] **Enable PPT Tools.** Kimi now hosts `inside_install.sh` and Linux x64 and
-      arm64 assets. Select that installer on Linux, remove the current compatibility
-      skip, and cover installation and upgrade behavior.
+- [x] **Enable PPT Tools.** Select `inside_install.sh` on Linux (upstream
+      `install.sh` is macOS-only), remove the compatibility skip, and verify
+      install plus idempotent upgrade against the hosted Linux x64/arm64 assets.
 - [ ] **Implement launch at login.** Replace Electron's macOS/Windows-only login
       item API with an XDG autostart desktop entry whose executable remains valid
       after an AppImage update.
