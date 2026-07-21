@@ -221,15 +221,21 @@ function warnLinuxRuntimeDepsOnStartup() {
   }
   KLogMain.warn("LinuxRuntimeDeps", "git not found on daimon PATH; coding workflows will fail");
   const zh = String(process.env.LANG || process.env.LC_ALL || "").toLowerCase().startsWith("zh");
-  dialog.showMessageBox({
+  const opts = {
     type: "warning",
     title: zh ? "缺少 Git" : "Git not found",
     message: zh ? "未检测到 Git，代码相关功能将无法使用。" : "Git was not found. Coding workflows will not work.",
     detail: zh ? "请通过系统包管理器安装 Git，例如：\\nsudo apt install git" : "Install Git from your distro packages, e.g.:\\nsudo apt install git",
     buttons: [zh ? "知道了" : "OK"],
     noLink: true
-  }).catch(() => {
-  });
+  };
+  // Defer until after createMainWindow so we can parent the dialog.
+  setTimeout(() => {
+    const parent = BrowserWindow.getFocusedWindow() || BrowserWindow.getAllWindows()[0] || BaseWindow.getFocusedWindow?.() || BaseWindow.getAllWindows?.()?.[0];
+    const shown = parent ? dialog.showMessageBox(parent, opts) : dialog.showMessageBox(opts);
+    shown.catch(() => {
+    });
+  }, 0);
 }
 `.trim();
 
