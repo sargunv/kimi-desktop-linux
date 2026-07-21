@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { createReadStream } from "node:fs";
+import { createReadStream, createWriteStream } from "node:fs";
 import { mkdir, rename, rm, stat } from "node:fs/promises";
 import { basename, join, resolve } from "node:path";
 import { pipeline } from "node:stream/promises";
@@ -83,7 +83,7 @@ if (command === "version") {
     if (!archive.ok || !archive.body) {
       throw new Error(`failed to fetch ${release.url}: HTTP ${archive.status}`);
     }
-    await pipeline(Readable.fromWeb(archive.body), temporary);
+    await pipeline(Readable.fromWeb(archive.body), createWriteStream(temporary));
     try {
       await verify(temporary, release);
       await rename(temporary, output);
