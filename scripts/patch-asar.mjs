@@ -132,11 +132,52 @@ const replacements = [
       '...process.platform === "darwin" ? { titleBarStyle: "hiddenInset" } : process.platform === "win32" ? { titleBarStyle: "hidden" } : {},',
   },
   {
-    description: "skip the unsupported upstream PPT installer on Linux",
+    description: "advertise the Linux PPT Tools inside_install.sh URL",
     expected: 1,
-    from: 'const arch = options.arch ?? process.arch;\n  if (platform === "win32" && arch !== "x64") {',
-    to:
-      'const arch = options.arch ?? process.arch;\n  if (platform === "linux") {\n    return { status: "skipped-unsupported", reason: "PPT Tools does not provide a Linux installer" };\n  }\n  if (platform === "win32" && arch !== "x64") {',
+    from: `const PPT_TOOLS_SCRIPT_URLS = {
+  posix: "https://www.kimi.com/neo-ppt/cli-install/install.sh",
+  windows: "https://www.kimi.com/neo-ppt/cli-install/install.ps1"
+};`,
+    to: `const PPT_TOOLS_SCRIPT_URLS = {
+  posix: "https://www.kimi.com/neo-ppt/cli-install/install.sh",
+  linux: "https://www.kimi.com/neo-ppt/cli-install/inside_install.sh",
+  windows: "https://www.kimi.com/neo-ppt/cli-install/install.ps1"
+};`,
+  },
+  {
+    description: "select inside_install.sh for PPT Tools on Linux",
+    expected: 1,
+    from: `  if (platform === "win32") {
+    return {
+      url: PPT_TOOLS_SCRIPT_URLS.windows,
+      sourcePolicy: PPT_TOOLS_SOURCE_POLICY,
+      scriptArgs: ["-InstallDir", installDir]
+    };
+  }
+  return {
+    url: PPT_TOOLS_SCRIPT_URLS.posix,
+    sourcePolicy: PPT_TOOLS_SOURCE_POLICY,
+    scriptArgs: [installDir]
+  };`,
+    to: `  if (platform === "win32") {
+    return {
+      url: PPT_TOOLS_SCRIPT_URLS.windows,
+      sourcePolicy: PPT_TOOLS_SOURCE_POLICY,
+      scriptArgs: ["-InstallDir", installDir]
+    };
+  }
+  if (platform === "linux") {
+    return {
+      url: PPT_TOOLS_SCRIPT_URLS.linux,
+      sourcePolicy: PPT_TOOLS_SOURCE_POLICY,
+      scriptArgs: [installDir]
+    };
+  }
+  return {
+    url: PPT_TOOLS_SCRIPT_URLS.posix,
+    sourcePolicy: PPT_TOOLS_SOURCE_POLICY,
+    scriptArgs: [installDir]
+  };`,
   },
   {
     description: "disable vendor updates for an unofficial Linux package",

@@ -26,6 +26,9 @@ test("ASAR patcher contains fail-closed replacement counts", async () => {
   assert.match(source, /TerminalApplication/);
   assert.match(source, /listLinuxWorkbenchOpenWithApplications/);
   assert.match(source, /gio", \["launch"/);
+  assert.match(source, /neo-ppt\/cli-install\/inside_install\.sh/);
+  assert.match(source, /PPT_TOOLS_SCRIPT_URLS\.linux/);
+  assert.doesNotMatch(source, /PPT Tools does not provide a Linux installer/);
 });
 
 test("Linux update manifest matches its AppImage", async () => {
