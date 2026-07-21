@@ -73,6 +73,22 @@ const replacements = [
     to:
       'this.baseWindow.on("close", (e) => {\n      if (!this.isQuitting) {\n        if (!tray) {\n          e.preventDefault();\n          app.quit();\n          return;\n        }\n        e.preventDefault();\n        if (this.baseWindow?.isFullScreen()) {\n          this.baseWindow.setFullScreen(false);\n        } else {\n          this.baseWindow?.hide();\n        }\n      }\n    });',
   },
+  {
+    description: "best-effort Linux terminal launch for workspace open-terminal",
+    expected: 1,
+    from:
+      '        const terminals = ["gnome-terminal", "konsole", "xfce4-terminal", "xterm"];\n        for (const term of terminals) {\n          try {\n            spawnProcess(term, ["--working-directory", workdir], { detached: true, stdio: "ignore" });\n            return { success: true };\n          } catch {\n            continue;\n          }\n        }\n        return { success: false, message: "No terminal emulator found" };',
+    to:
+      '        spawnProcess("sh", ["-c", \'dir=$1; if command -v xdg-terminal-exec >/dev/null 2>&1; then cd "$dir" && exec xdg-terminal-exec; fi; if command -v konsole >/dev/null 2>&1; then exec konsole --workdir "$dir"; fi; if command -v gnome-terminal >/dev/null 2>&1; then exec gnome-terminal --working-directory="$dir"; fi; if command -v xfce4-terminal >/dev/null 2>&1; then exec xfce4-terminal --working-directory="$dir"; fi; if command -v x-terminal-emulator >/dev/null 2>&1; then cd "$dir" && exec x-terminal-emulator; fi; if command -v xterm >/dev/null 2>&1; then cd "$dir" && exec xterm; fi; exit 127\', "kimi-open-terminal", workdir], { detached: true, stdio: "ignore" });\n        return { success: true };',
+  },
+  {
+    description: "best-effort Linux terminal launch for Open With",
+    expected: 1,
+    from:
+      '    if (applicationId === "terminal") {\n      spawnDetached("x-terminal-emulator", ["--working-directory", targetDir]);\n      return true;\n    }',
+    to:
+      '    if (applicationId === "terminal") {\n      spawnDetached("sh", ["-c", \'dir=$1; if command -v xdg-terminal-exec >/dev/null 2>&1; then cd "$dir" && exec xdg-terminal-exec; fi; if command -v konsole >/dev/null 2>&1; then exec konsole --workdir "$dir"; fi; if command -v gnome-terminal >/dev/null 2>&1; then exec gnome-terminal --working-directory="$dir"; fi; if command -v xfce4-terminal >/dev/null 2>&1; then exec xfce4-terminal --working-directory="$dir"; fi; if command -v x-terminal-emulator >/dev/null 2>&1; then cd "$dir" && exec x-terminal-emulator; fi; if command -v xterm >/dev/null 2>&1; then cd "$dir" && exec xterm; fi; exit 127\', "kimi-open-terminal", targetDir]);\n      return true;\n    }',
+  },
 ];
 
 function countOccurrences(haystack, needle) {
