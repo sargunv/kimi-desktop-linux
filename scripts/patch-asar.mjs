@@ -210,6 +210,73 @@ function applyLinuxLaunchAtLogin(enabled) {
 }
 `.trim();
 
+const linuxPortPidHelpers = `
+function linuxFindListeningPidsOnPort(port) {
+  const n = Number(port);
+  if (!Number.isInteger(n) || n <= 0 || n > 65535) {
+    return [];
+  }
+  try {
+    const output = execFileSync("ss", ["-H", "-lptn", \`sport = :\${n}\`], {
+      encoding: "utf8",
+      timeout: 3e3,
+      maxBuffer: 65536
+    });
+    const pids = [];
+    const seen = /* @__PURE__ */ new Set();
+    for (const line of String(output).split(/\\r?\\n/)) {
+      for (const match of line.matchAll(/pid=(\\d+)/g)) {
+        const pid = Number(match[1]);
+        if (Number.isFinite(pid) && pid > 0 && !seen.has(pid)) {
+          seen.add(pid);
+          pids.push(pid);
+        }
+      }
+    }
+    return pids;
+  } catch {
+    return [];
+  }
+}
+`.trim();
+
+const linuxRuntimeDepsHelpers = `
+let linuxRuntimeDepsWarned = false;
+function warnLinuxRuntimeDepsOnStartup() {
+  if (process.platform !== "linux" || linuxRuntimeDepsWarned) {
+    return;
+  }
+  linuxRuntimeDepsWarned = true;
+  const daimonPath = "/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin";
+  try {
+    execFileSync("git", ["--version"], {
+      encoding: "utf8",
+      timeout: 3e3,
+      env: { ...process.env, PATH: daimonPath }
+    });
+    return;
+  } catch {
+  }
+  KLogMain.warn("LinuxRuntimeDeps", "git not found on daimon PATH; coding workflows will fail");
+  const zh = String(process.env.LANG || process.env.LC_ALL || "").toLowerCase().startsWith("zh");
+  const opts = {
+    type: "warning",
+    title: zh ? "缺少 Git" : "Git not found",
+    message: zh ? "未检测到 Git，代码相关功能将无法使用。" : "Git was not found. Coding workflows will not work.",
+    detail: zh ? "请通过系统包管理器安装 Git，例如：\\nsudo apt install git" : "Install Git from your distro packages, e.g.:\\nsudo apt install git",
+    buttons: [zh ? "知道了" : "OK"],
+    noLink: true
+  };
+  // Defer until after createMainWindow so we can parent the dialog.
+  setTimeout(() => {
+    const parent = BrowserWindow.getFocusedWindow() || BrowserWindow.getAllWindows()[0] || BaseWindow.getFocusedWindow?.() || BaseWindow.getAllWindows?.()?.[0];
+    const shown = parent ? dialog.showMessageBox(parent, opts) : dialog.showMessageBox(opts);
+    shown.catch(() => {
+    });
+  }, 0);
+}
+`.trim();
+
 const replacements = [
   {
     description: "remove the redundant Linux application menu",
@@ -381,6 +448,44 @@ function syncDockBadgeCount(count, reason, overlayDataUrl) {`,
       "    app.setBadgeCount(next);\n    if (process.platform === \"darwin\") {\n      app.dock?.setBadge(next > 0 ? String(next) : \"\");\n      scheduleDarwinBadgeRepaint(next, reason);\n    }",
     to:
       '    app.setBadgeCount(next);\n    if (process.platform === "darwin") {\n      app.dock?.setBadge(next > 0 ? String(next) : "");\n      scheduleDarwinBadgeRepaint(next, reason);\n    } else if (process.platform === "linux") {\n      syncLinuxLauncherBadgeCount(next);\n    }',
+  },
+  {
+    description: "inject Linux ss-based listening-port helpers",
+    expected: 1,
+    from: "function findPidByPort(port) {",
+    to: `${linuxPortPidHelpers}
+function findPidByPort(port) {`,
+  },
+  {
+    description: "use ss for findPidByPort on Linux",
+    expected: 1,
+    from:
+      '    const out2 = execSync(`lsof -iTCP:${port} -sTCP:LISTEN -t`, {\n      timeout: 5e3,\n      encoding: "utf-8"\n    }).trim();\n    const pid = parseInt(out2.split("\\n")[0] ?? "", 10);\n    return Number.isFinite(pid) && pid > 0 ? pid : null;',
+    to:
+      '    if (process.platform === "linux") {\n      const pid2 = linuxFindListeningPidsOnPort(port)[0];\n      return pid2 ?? null;\n    }\n    const out2 = execSync(`lsof -iTCP:${port} -sTCP:LISTEN -t`, {\n      timeout: 5e3,\n      encoding: "utf-8"\n    }).trim();\n    const pid = parseInt(out2.split("\\n")[0] ?? "", 10);\n    return Number.isFinite(pid) && pid > 0 ? pid : null;',
+  },
+  {
+    description: "use ss for findPidsOnPort on Linux",
+    expected: 1,
+    from:
+      '    } else {\n      const output = execFileSync("lsof", ["-nP", `-iTCP:${port}`, "-sTCP:LISTEN", "-t"], { encoding: "utf8" });\n      for (const line of output.split(/\\r?\\n/)) {\n        const pid = Number(line.trim());\n        if (Number.isFinite(pid) && pid > 0) {\n          pids.add(pid);\n        }\n      }\n    }',
+    to:
+      '    } else if (process.platform === "linux") {\n      for (const pid of linuxFindListeningPidsOnPort(port)) {\n        pids.add(pid);\n      }\n    } else {\n      const output = execFileSync("lsof", ["-nP", `-iTCP:${port}`, "-sTCP:LISTEN", "-t"], { encoding: "utf8" });\n      for (const line of output.split(/\\r?\\n/)) {\n        const pid = Number(line.trim());\n        if (Number.isFinite(pid) && pid > 0) {\n          pids.add(pid);\n        }\n      }\n    }',
+  },
+  {
+    description: "inject Linux runtime dependency warn helper",
+    expected: 1,
+    from: "function applyWorkSettingsOnStartup() {",
+    to: `${linuxRuntimeDepsHelpers}
+function applyWorkSettingsOnStartup() {`,
+  },
+  {
+    description: "warn once at startup when Linux host git is missing",
+    expected: 1,
+    from:
+      "  KLogMain.info(TAG$x, `启动重放: keepAwake=${persisted.keepAwake} selectionToolbar=${persisted.selectionToolbarEnabled}`);\n}",
+    to:
+      "  KLogMain.info(TAG$x, `启动重放: keepAwake=${persisted.keepAwake} selectionToolbar=${persisted.selectionToolbarEnabled}`);\n  warnLinuxRuntimeDepsOnStartup();\n}",
   },
 ];
 
