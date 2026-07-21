@@ -206,6 +206,46 @@ node "$ROOT_DIR/scripts/prepare-gateway.mjs" "$STAGE_DIR/resources/resources/gat
   PATH="$WORK_DIR/node/bin:$PATH" npm install --omit=dev --foreground-scripts --package-lock=false
 )
 
+info "Rebuilding gateway clipboard with Wayland support"
+export PATH="$HOME/.cargo/bin:/usr/local/cargo/bin:$PATH"
+for tool in rustc cargo; do require "$tool"; done
+node "$ROOT_DIR/scripts/rebuild-clipboard-wayland.mjs" \
+  "$STAGE_DIR/resources/resources/gateway"
+CLIPBOARD_PKG="$(find "$STAGE_DIR/resources/resources/gateway/node_modules" \
+  -path '*/@mariozechner/clipboard/package.json' -print -quit)"
+[[ -n "$CLIPBOARD_PKG" ]] || die "gateway is missing @mariozechner/clipboard"
+CLIPBOARD_DIR="$(dirname "$CLIPBOARD_PKG")"
+CLIPBOARD_NODE="$(find "$CLIPBOARD_DIR" "$STAGE_DIR/resources/resources/gateway/node_modules/@mariozechner" \
+  -name 'clipboard.linux-*-gnu.node' -print -quit)"
+[[ -n "$CLIPBOARD_NODE" ]] || die "clipboard rebuild produced no linux .node binary"
+PATH="$WORK_DIR/node/bin:$PATH" node -e '
+const { readFileSync } = require("node:fs");
+const binary = readFileSync(process.argv[1]);
+if (!binary.includes(Buffer.from("WAYLAND_DISPLAY")) ||
+    !binary.includes(Buffer.from("Wayland clipboard init failed"))) {
+  throw new Error("rebuilt clipboard binary lacks Wayland support");
+}
+' "$CLIPBOARD_NODE"
+env -u DISPLAY WAYLAND_DISPLAY=wayland-0 XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/tmp}" \
+  PATH="$WORK_DIR/node/bin:$PATH" node --input-type=module -e '
+import { createRequire } from "node:module";
+import { join } from "node:path";
+const require = createRequire(join(process.argv[1], "package.json"));
+const clipboard = require(process.argv[1]);
+if (typeof clipboard.setText !== "function") {
+  throw new Error("clipboard module missing setText");
+}
+try {
+  await clipboard.setText("kimi-wayland-smoke");
+} catch (error) {
+  const message = error instanceof Error ? error.message : String(error);
+  // Without a compositor, Wayland init fails over to X11, which then needs DISPLAY.
+  if (!/wayland|display|compositor|socket/i.test(message)) {
+    throw error;
+  }
+}
+' "$CLIPBOARD_DIR"
+
 info "Rebuilding the workspace daemon's native modules"
 rsync -a --exclude='*:com.apple.*' --exclude='runtime/python/***' --exclude='runtime/uv/***' "$MAC_DAIMON/" "$STAGE_DIR/resources/resources/daimon-bundle/"
 DAIMON_DIR="$STAGE_DIR/resources/resources/daimon-bundle"

@@ -7,8 +7,10 @@ extracted application files, or built AppImages.
 ## Set up
 
 You need Linux x86_64 or aarch64 with glibc, `mise`, `7z`, `curl`, `rsync`,
-`tar`, `unzip`, `xz`, a C/C++ toolchain, and Python for `node-gyp`. Builds are
-native only (no cross-compilation). musl-based hosts are out of scope.
+`tar`, `unzip`, `xz`, a C/C++ toolchain, Python for `node-gyp`, and a current
+Rust toolchain (`rustc`/`cargo`) to rebuild the gateway clipboard addon with
+Wayland support. Builds are native only (no cross-compilation). musl-based
+hosts are out of scope.
 
 ```sh
 mise install
@@ -35,9 +37,11 @@ The build:
 2. Fetches matching Linux Electron, Node, Python, uv, and WebBridge binaries
    for the host architecture.
 3. Reinstalls or rebuilds native Node dependencies for Linux.
-4. Applies the small Linux compatibility patches in
+4. Rebuilds `@mariozechner/clipboard` with its Wayland Cargo feature so pure
+   Wayland sessions work without `DISPLAY` (X11 remains the fallback).
+5. Applies the small Linux compatibility patches in
    `scripts/patch-asar.mjs`.
-5. Packages the result as an AppImage with Linux update metadata.
+6. Packages the result as an AppImage with Linux update metadata.
 
 ## Making changes
 
