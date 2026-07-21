@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Kimi Work
+Comment=Kimi Work desktop application
+Exec=AppRun %U
+Icon=kimi-work
+Terminal=false
+Categories=Development;Utility;
+StartupWMClass=Kimi
+MimeType=x-scheme-handler/kimi;x-scheme-handler/kimi-work;
+

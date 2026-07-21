@@ -1,0 +1,11 @@
+[tools]
+node = "24.15.0"
+"aqua:pnpm/pnpm" = "11.15.1"
+"aqua:jdx/hk" = "1.51.0"
+"aqua:dprint/dprint" = "0.55.2"
+
+[settings]
+experimental = true
+lockfile = true
+minimum_release_age = "7d"
+

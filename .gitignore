@@ -1,1 +1,9 @@
 original/
+.cache/
+.mise.*
+build/
+dist/
+node_modules/
+*.AppImage
+*.tar.zst
+

@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+APP_ROOT="${APPDIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)}"
+exec "$APP_ROOT/opt/kimi-work/start-kimi-work" "$@"
+

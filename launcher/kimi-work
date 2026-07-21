@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+APP_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# A portable bundle cannot install chrome-sandbox setuid-root. Electron's
+# namespace sandbox still depends on distro policy, so use the same fallback as
+# most third-party AppImages.
+exec "$APP_DIR/kimi-work" --no-sandbox --ozone-platform-hint=auto "$@"
+
