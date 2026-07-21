@@ -2,6 +2,12 @@ import * as asar from "@electron/asar";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import {
+  LINUX_LAUNCHER_DESKTOP_ID,
+  LINUX_LAUNCHER_ENTRY_IFACE,
+  linuxLauncherEntryAppUri,
+  linuxLauncherEntryObjectPath,
+} from "./linux-launcher-badge.mjs";
 
 const [sourceAsar, outputAsar, outputIcon] = process.argv.slice(2);
 
@@ -112,6 +118,38 @@ async function listLinuxWorkbenchOpenWithApplications(path2, locale) {
     KLogMain.warn(\`RightWorkbench\`, \`query Linux open-with applications failed: \${error2 instanceof Error ? error2.message : String(error2)}\`);
   }
   return applications;
+}
+`.trim();
+
+const linuxLauncherBadgeObjectPath = linuxLauncherEntryObjectPath(LINUX_LAUNCHER_DESKTOP_ID);
+const linuxLauncherBadgeAppUri = linuxLauncherEntryAppUri(LINUX_LAUNCHER_DESKTOP_ID);
+const linuxLauncherBadgeUpdateSignal = `${LINUX_LAUNCHER_ENTRY_IFACE}.Update`;
+
+// Best-effort Unity.LauncherEntry D-Bus signal so KDE/GNOME taskbars can show a
+// badge. Electron's app.setBadgeCount() only works with Ubuntu Unity/libunity.
+const linuxLauncherBadgeHelpers = `
+function syncLinuxLauncherBadgeCount(count) {
+  const next = normalizeBadgeCount(count);
+  const visible = next > 0;
+  execFile(
+    "gdbus",
+    [
+      "emit",
+      "--session",
+      "--object-path",
+      ${JSON.stringify(linuxLauncherBadgeObjectPath)},
+      "--signal",
+      ${JSON.stringify(linuxLauncherBadgeUpdateSignal)},
+      ${JSON.stringify(linuxLauncherBadgeAppUri)},
+      \`{'count': <int64 \${next}>, 'count-visible': <\${visible}>}\`
+    ],
+    { timeout: 1500, windowsHide: true },
+    (error2) => {
+      if (error2) {
+        KLogMain.warn(TAG$w, \`linux launcher badge sync failed: \${formatError(error2)}\`);
+      }
+    }
+  );
 }
 `.trim();
 
@@ -328,6 +366,21 @@ function readLaunchAtLogin() {`,
       "function applyLaunchAtLogin(enabled) {\n  try {\n    app.setLoginItemSettings({ openAtLogin: enabled });\n  } catch (err) {\n    KLogMain.error(TAG$x, `设置登录项失败: ${err instanceof Error ? err.message : String(err)}`);\n  }\n}",
     to:
       'function applyLaunchAtLogin(enabled) {\n  try {\n    if (process.platform === "linux") {\n      applyLinuxLaunchAtLogin(enabled);\n      return;\n    }\n    app.setLoginItemSettings({ openAtLogin: enabled });\n  } catch (err) {\n    KLogMain.error(TAG$x, `设置登录项失败: ${err instanceof Error ? err.message : String(err)}`);\n  }\n}',
+  },
+  {
+    description: "inject Linux Unity.LauncherEntry badge helper",
+    expected: 1,
+    from: "function syncDockBadgeCount(count, reason, overlayDataUrl) {",
+    to: `${linuxLauncherBadgeHelpers}
+function syncDockBadgeCount(count, reason, overlayDataUrl) {`,
+  },
+  {
+    description: "emit Unity.LauncherEntry badge updates on Linux",
+    expected: 1,
+    from:
+      "    app.setBadgeCount(next);\n    if (process.platform === \"darwin\") {\n      app.dock?.setBadge(next > 0 ? String(next) : \"\");\n      scheduleDarwinBadgeRepaint(next, reason);\n    }",
+    to:
+      '    app.setBadgeCount(next);\n    if (process.platform === "darwin") {\n      app.dock?.setBadge(next > 0 ? String(next) : "");\n      scheduleDarwinBadgeRepaint(next, reason);\n    } else if (process.platform === "linux") {\n      syncLinuxLauncherBadgeCount(next);\n    }',
   },
 ];
 

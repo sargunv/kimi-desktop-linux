@@ -74,6 +74,8 @@ test("ASAR patcher selects inside_install.sh for Linux PPT Tools requests", asyn
       '  if (process.platform === "linux") {\n    const targetDir = isDirectory ? path2 : dirname$2(path2);\n    if (applicationId === "file-manager") {\n      spawnDetached("xdg-open", [targetDir]);\n      return true;\n    }\n    if (applicationId === "terminal") {\n      spawnDetached("x-terminal-emulator", ["--working-directory", targetDir]);\n      return true;\n    }\n  }',
       "function readLaunchAtLogin() {\n  try {\n    return app.getLoginItemSettings().openAtLogin === true;\n  } catch (err) {\n    KLogMain.warn(TAG$x, `读取登录项失败: ${err instanceof Error ? err.message : String(err)}`);\n    return false;\n  }\n}",
       "function applyLaunchAtLogin(enabled) {\n  try {\n    app.setLoginItemSettings({ openAtLogin: enabled });\n  } catch (err) {\n    KLogMain.error(TAG$x, `设置登录项失败: ${err instanceof Error ? err.message : String(err)}`);\n  }\n}",
+      "function syncDockBadgeCount(count, reason, overlayDataUrl) {",
+      '    app.setBadgeCount(next);\n    if (process.platform === "darwin") {\n      app.dock?.setBadge(next > 0 ? String(next) : "");\n      scheduleDarwinBadgeRepaint(next, reason);\n    }',
     ].join("\n");
     await writeFile(join(sourceRoot, "out", "main", "index.js"), main);
     await writeFile(join(sourceRoot, "assets", "icon.png"), Buffer.from([137, 80, 78, 71]));
@@ -108,6 +110,9 @@ test("ASAR patcher selects inside_install.sh for Linux PPT Tools requests", asyn
       patched,
       /if \(process\.platform === "linux"\) \{\n      applyLinuxLaunchAtLogin\(enabled\);/,
     );
+    assert.match(patched, /syncLinuxLauncherBadgeCount/);
+    assert.match(patched, /com\.canonical\.Unity\.LauncherEntry\.Update/);
+    assert.match(patched, /application:\/\/kimi-work\.desktop/);
   } finally {
     await rm(directory, { recursive: true, force: true });
   }

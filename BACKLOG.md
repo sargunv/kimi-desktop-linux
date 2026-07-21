@@ -49,9 +49,11 @@ each upstream release before changing bundled code.
 - [ ] **Add runtime dependency diagnostics.** Detect missing Git and other
       required host tools early. Remove the `lsof` dependency from stale WebBridge
       port recovery or report its absence clearly.
-- [ ] **Make unread state desktop-independent.** Linux launcher badges only work
-      on Unity. Preserve unread state in the application UI when badges or a tray are
-      unavailable.
+- [x] **Make unread state desktop-independent.** Best-effort: keep Electron
+      `app.setBadgeCount()` and also emit `com.canonical.Unity.LauncherEntry.Update`
+      over the session bus via `gdbus` for `application://kimi-work.desktop` so
+      KDE/GNOME taskbars can show a count without Unity/libunity. In-app sidebar
+      unread dots already work without a badge or tray.
 
 ## Portability and coverage
 

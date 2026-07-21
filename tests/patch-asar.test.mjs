@@ -32,6 +32,10 @@ test("ASAR patcher contains fail-closed replacement counts", async () => {
   assert.match(source, /applyLinuxLaunchAtLogin/);
   assert.match(source, /kimi-work\.desktop/);
   assert.match(source, /process\.env\.APPIMAGE/);
+  assert.match(source, /syncLinuxLauncherBadgeCount/);
+  assert.match(source, /LINUX_LAUNCHER_ENTRY_IFACE/);
+  assert.match(source, /linux-launcher-badge\.mjs/);
+  assert.match(source, /gdbus/);
   assert.doesNotMatch(source, /PPT Tools does not provide a Linux installer/);
 });
 
