@@ -15,6 +15,9 @@ test("ASAR patcher contains fail-closed replacement counts", async () => {
   assert.match(source, /Menu\.setApplicationMenu\(null\)/);
   assert.match(source, /process\.platform === \"linux\"/);
   assert.match(source, /KIMI_UPDATE_TOKEN/);
+  assert.match(source, /vendor', 'npm'/);
+  assert.match(source, /app\.quit\(\)/);
+  assert.match(source, /quit on window close on Linux/);
 });
 
 test("Linux update manifest matches its AppImage", async () => {

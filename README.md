@@ -23,14 +23,15 @@ workspaces, Kimi Code, gateway, and WebBridge start successfully.
 
 Known limitations:
 
-- Only x86_64 Linux systems using glibc are supported.
+- Only x86_64 Linux systems using glibc are supported. musl distributions are
+  not supported.
 - PPT Tools and the selection toolbar are currently unavailable.
-- Closing the window hides Kimi in the system tray. Some desktop environments,
-  including stock GNOME, may require tray-icon support to restore or quit it.
 - The AppImage currently launches Electron without its Chromium sandbox. See
   [the security notes](SECURITY.md) before using higher-risk integrations.
 
-Git is expected to be installed for coding workflows.
+Desktop menu entries, icons, and `kimi:` / `kimi-work:` protocol handlers are
+provided by host AppImage integration tools such as Gear Lever or
+AppImageLauncher. Git is expected to be installed for coding workflows.
 
 ## Unofficial distribution
 

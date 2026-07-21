@@ -50,6 +50,22 @@ const replacements = [
     to:
       'autoUpdater.forceDevUpdateConfig = true;\n    autoUpdater.setFeedURL({ provider: "generic", url: envUrl });\n    const updateToken = process.env.KIMI_UPDATE_TOKEN;\n    if (updateToken) {\n      autoUpdater.requestHeaders = { Authorization: `Bearer ${updateToken}`, Accept: "application/octet-stream" };\n    }',
   },
+  {
+    description: "use the bundled vendor npm layout on Linux managed commands",
+    expected: 1,
+    from:
+      "const npmDir = process.platform === 'darwin'\n  ? path.join(runtimeDir, 'vendor', 'npm')\n  : path.join(runtimeDir, 'node_modules', 'npm')",
+    to:
+      "const npmDir = process.platform === 'win32'\n  ? path.join(runtimeDir, 'node_modules', 'npm')\n  : path.join(runtimeDir, 'vendor', 'npm')",
+  },
+  {
+    description: "quit on window close on Linux instead of hiding to tray",
+    expected: 1,
+    from:
+      'this.baseWindow.on("close", (e) => {\n      if (!this.isQuitting) {\n        e.preventDefault();\n        if (this.baseWindow?.isFullScreen()) {\n          this.baseWindow.setFullScreen(false);\n        } else {\n          this.baseWindow?.hide();\n        }\n      }\n    });',
+    to:
+      'this.baseWindow.on("close", (e) => {\n      if (!this.isQuitting) {\n        if (process.platform === "linux") {\n          e.preventDefault();\n          app.quit();\n          return;\n        }\n        e.preventDefault();\n        if (this.baseWindow?.isFullScreen()) {\n          this.baseWindow.setFullScreen(false);\n        } else {\n          this.baseWindow?.hide();\n        }\n      }\n    });',
+  },
 ];
 
 function countOccurrences(haystack, needle) {

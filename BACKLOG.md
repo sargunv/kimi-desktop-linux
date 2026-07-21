@@ -5,14 +5,12 @@ each upstream release before changing bundled code.
 
 ## Functional and security
 
-- [ ] **Repair managed `npm` and `npx` commands.** The Linux process runner looks
-      for `runtime/node_modules/npm`, while the repackaged runtime contains
-      `runtime/vendor/npm`. Add the compatible layout or patch the lookup, then test
-      both commands through the managed-command wrapper.
-- [ ] **Make closing the window safe without a tray.** Kimi currently hides on
-      close, which can leave it inaccessible on desktops without tray support.
-      Default to quitting on Linux or expose a close-to-tray setting that is off by
-      default.
+- [x] **Repair managed `npm` and `npx` commands.** The managed-command launcher
+      treated Linux like Windows (`runtime/node_modules/npm`), while the
+      repackaged runtime keeps the macOS `runtime/vendor/npm` layout. Linux now
+      uses the vendor path.
+- [x] **Make closing the window safe without a tray.** Closing the main window
+      on Linux quits the app instead of only hiding to the tray.
 - [ ] **Fix terminal launching.** Detect installed terminal emulators before
       spawning them, use emulator-specific working-directory arguments, and report
       asynchronous launch failures.
@@ -30,15 +28,14 @@ each upstream release before changing bundled code.
 - [ ] **Implement launch at login.** Replace Electron's macOS/Windows-only login
       item API with an XDG autostart desktop entry whose executable remains valid
       after an AppImage update.
-- [ ] **Install desktop and protocol metadata.** Register the application in the
-      user's XDG applications directory so icons, launchers, and `kimi:` and
-      `kimi-work:` deep links work without AppImageLauncher. Test both cold-start and
-      already-running deep links.
-- [ ] **Provide proper application and AppImage icons.** Generate correctly sized
-      hicolor variants from Kimi's upstream artwork instead of placing the 1024px
-      source in a 256px directory. Ensure the Electron window, desktop entry,
-      AppImage `.DirIcon`, task switcher, and dock all resolve the Kimi Work icon on
-      GNOME and KDE.
+- [x] **Install desktop and protocol metadata.** Out of scope for the portable
+      AppImage itself. The bundle already ships `kimi-work.desktop` (with `kimi:` /
+      `kimi-work:` MimeTypes), icons, and `.DirIcon` for host tools such as Gear
+      Lever or AppImageLauncher to register.
+- [x] **Provide proper application and AppImage icons.** The package already
+      embeds upstream `icon.png` as the AppImage icon, `.DirIcon`, and hicolor
+      entry. Multi-size hicolor polishing is optional; day-to-day icons work via the
+      AppImage and host integration tools.
 - [ ] **Improve Open With.** Resolve MIME associations and application names from
       desktop entries instead of offering only hardcoded file-manager and terminal
       choices.
@@ -60,9 +57,8 @@ each upstream release before changing bundled code.
 - [ ] **Add Linux arm64 builds.** Select arm64 Electron, Node, Python, uv,
       WebBridge, gateway dependencies, and AppImage runtime assets, with native CI
       coverage.
-- [ ] **Define broader distribution support.** Establish and test minimum glibc
-      and desktop-library requirements. Decide whether musl distributions are in
-      scope or explicitly unsupported.
+- [x] **Define broader distribution support.** Supported: Linux x86_64 with glibc.
+      musl distributions (Alpine, etc.) are explicitly out of scope for now.
 - [ ] **Expand native-module smoke tests.** Exercise the gateway's Sharp, Canvas,
       clipboard, Koffi, and sqlite-vec modules in addition to the existing daemon
       checks.

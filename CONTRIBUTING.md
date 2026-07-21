@@ -6,8 +6,9 @@ application files, or built AppImages.
 
 ## Set up
 
-You need Linux x86_64, `mise`, `7z`, `curl`, `rsync`, `tar`, `unzip`, `xz`, a
-C/C++ toolchain, and Python for `node-gyp`.
+You need Linux x86_64 with glibc, `mise`, `7z`, `curl`, `rsync`, `tar`,
+`unzip`, `xz`, a C/C++ toolchain, and Python for `node-gyp`. musl-based hosts
+are out of scope.
 
 ```sh
 mise install
