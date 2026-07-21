@@ -31,9 +31,9 @@ each upstream release before changing bundled code.
 - [x] **Enable PPT Tools.** Select `inside_install.sh` on Linux (upstream
       `install.sh` is macOS-only), remove the compatibility skip, and verify
       install plus idempotent upgrade against the hosted Linux x64/arm64 assets.
-- [ ] **Implement launch at login.** Replace Electron's macOS/Windows-only login
-      item API with an XDG autostart desktop entry whose executable remains valid
-      after an AppImage update.
+- [x] **Implement launch at login.** Best-effort: on Linux, map the settings
+      toggle to an XDG autostart desktop entry (`kimi-work.desktop`) whose `Exec`
+      uses `$APPIMAGE` when present so in-place AppImage updates keep working.
 - [x] **Install desktop and protocol metadata.** Out of scope for the portable
       AppImage itself. The bundle already ships `kimi-work.desktop` (with `kimi:` /
       `kimi-work:` MimeTypes), icons, and `.DirIcon` for host tools such as Gear

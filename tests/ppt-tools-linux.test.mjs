@@ -72,6 +72,8 @@ test("ASAR patcher selects inside_install.sh for Linux PPT Tools requests", asyn
       "async function listWorkbenchOpenWithApplications(path2, isDirectory, locale) {",
       '  if (process.platform === "linux") {\n    const zh = isChineseLocale(locale);\n    return [\n      { id: "file-manager", name: zh ? "文件管理器" : "File manager" },\n      { id: "terminal", name: zh ? "终端" : "Terminal" }\n    ];\n  }',
       '  if (process.platform === "linux") {\n    const targetDir = isDirectory ? path2 : dirname$2(path2);\n    if (applicationId === "file-manager") {\n      spawnDetached("xdg-open", [targetDir]);\n      return true;\n    }\n    if (applicationId === "terminal") {\n      spawnDetached("x-terminal-emulator", ["--working-directory", targetDir]);\n      return true;\n    }\n  }',
+      "function readLaunchAtLogin() {\n  try {\n    return app.getLoginItemSettings().openAtLogin === true;\n  } catch (err) {\n    KLogMain.warn(TAG$x, `读取登录项失败: ${err instanceof Error ? err.message : String(err)}`);\n    return false;\n  }\n}",
+      "function applyLaunchAtLogin(enabled) {\n  try {\n    app.setLoginItemSettings({ openAtLogin: enabled });\n  } catch (err) {\n    KLogMain.error(TAG$x, `设置登录项失败: ${err instanceof Error ? err.message : String(err)}`);\n  }\n}",
     ].join("\n");
     await writeFile(join(sourceRoot, "out", "main", "index.js"), main);
     await writeFile(join(sourceRoot, "assets", "icon.png"), Buffer.from([137, 80, 78, 71]));
@@ -96,6 +98,16 @@ test("ASAR patcher selects inside_install.sh for Linux PPT Tools requests", asyn
       /if \(platform === "linux"\) \{\n    return \{\n      url: PPT_TOOLS_SCRIPT_URLS\.linux,/,
     );
     assert.doesNotMatch(patched, /PPT Tools does not provide a Linux installer/);
+    assert.match(patched, /function readLinuxLaunchAtLogin\(\)/);
+    assert.match(patched, /kimi-work\.desktop/);
+    assert.match(
+      patched,
+      /if \(process\.platform === "linux"\) \{\n      return readLinuxLaunchAtLogin\(\);/,
+    );
+    assert.match(
+      patched,
+      /if \(process\.platform === "linux"\) \{\n      applyLinuxLaunchAtLogin\(enabled\);/,
+    );
   } finally {
     await rm(directory, { recursive: true, force: true });
   }
