@@ -34,21 +34,46 @@ test("ASAR patcher contains fail-closed replacement counts", async () => {
 test("Linux update manifest matches its AppImage", async () => {
   const directory = await mkdtemp(join(tmpdir(), "kimi-update-test-"));
   try {
-    const appImage = join(directory, "kimi-work-1.2.3-linux.1-x86_64.AppImage");
-    const manifest = join(directory, "latest-linux.yml");
-    await writeFile(appImage, "test AppImage payload");
-    await execFileAsync(process.execPath, [
-      new URL("../scripts/write-update-manifest.mjs", import.meta.url).pathname,
-      appImage,
-      "1.2.3-linux.1",
-      manifest,
-    ]);
-    const yaml = await readFile(manifest, "utf8");
-    assert.match(yaml, /^version: 1\.2\.3-linux\.1$/m);
-    assert.match(yaml, /url: kimi-work-1\.2\.3-linux\.1-x86_64\.AppImage/);
-    assert.match(yaml, /size: 21/);
-    assert.match(yaml, /sha512: [A-Za-z0-9+/]+=*/);
+    for (const filename of [
+      "kimi-work-1.2.3-linux.1-x86_64.AppImage",
+      "kimi-work-1.2.3-linux.1-aarch64.AppImage",
+    ]) {
+      const appImage = join(directory, filename);
+      const manifest = join(directory, `${filename}.yml`);
+      await writeFile(appImage, "test AppImage payload");
+      await execFileAsync(process.execPath, [
+        new URL("../scripts/write-update-manifest.mjs", import.meta.url).pathname,
+        appImage,
+        "1.2.3-linux.1",
+        manifest,
+      ]);
+      const yaml = await readFile(manifest, "utf8");
+      assert.match(yaml, /^version: 1\.2\.3-linux\.1$/m);
+      assert.match(yaml, new RegExp(`url: ${filename.replace(/\./g, "\\.")}`));
+      assert.match(yaml, /size: 21/);
+      assert.match(yaml, /sha512: [A-Za-z0-9+/]+=*/);
+    }
   } finally {
     await rm(directory, { recursive: true, force: true });
   }
+});
+
+test("build and package scripts support native x86_64 and aarch64", async () => {
+  const build = await readFile(new URL("../scripts/build.sh", import.meta.url), "utf8");
+  const pack = await readFile(new URL("../scripts/package-appimage.sh", import.meta.url), "utf8");
+  const daimon = await readFile(
+    new URL("../scripts/patch-daimon-metadata.mjs", import.meta.url),
+    "utf8",
+  );
+  assert.match(build, /x86_64\)/);
+  assert.match(build, /aarch64\)/);
+  assert.match(build, /linux-arm64/);
+  assert.match(build, /uv-aarch64-unknown-linux-gnu\.tar\.gz/);
+  assert.match(build, /WEBBRIDGE_KEY=linux-arm64/);
+  assert.doesNotMatch(build, /only Linux x86_64 is supported/);
+  assert.match(pack, /APPIMAGE_ARCH=aarch64/);
+  assert.match(pack, /latest-linux-arm64\.yml/);
+  assert.match(pack, /runtime-aarch64/);
+  assert.match(daimon, /linux-arm64/);
+  assert.match(daimon, /unsupported daimon platform/);
 });

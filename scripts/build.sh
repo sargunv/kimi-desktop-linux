@@ -55,7 +55,32 @@ extract_7z() {
 }
 
 for tool in 7z awk curl find node npm rsync sha256sum tar unzip xz; do require "$tool"; done
-[[ "$(uname -m)" == "x86_64" ]] || die "only Linux x86_64 is supported"
+
+HOST_ARCH="$(uname -m)"
+case "$HOST_ARCH" in
+  x86_64)
+    ELECTRON_ARCH=x64
+    NODE_ARCH=x64
+    PYTHON_TARGET=x86_64-unknown-linux-gnu
+    UV_ARCHIVE=uv-x86_64-unknown-linux-gnu.tar.gz
+    WEBBRIDGE_KEY=linux-amd64
+    BUNDLE_PLATFORM=linux-x64
+    STAGE_ARCH=linux-x64
+    ;;
+  aarch64)
+    ELECTRON_ARCH=arm64
+    NODE_ARCH=arm64
+    PYTHON_TARGET=aarch64-unknown-linux-gnu
+    UV_ARCHIVE=uv-aarch64-unknown-linux-gnu.tar.gz
+    WEBBRIDGE_KEY=linux-arm64
+    BUNDLE_PLATFORM=linux-arm64
+    STAGE_ARCH=linux-arm64
+    ;;
+  *)
+    die "only Linux x86_64 and aarch64 are supported (got $HOST_ARCH)"
+    ;;
+esac
+info "Native host architecture: $HOST_ARCH ($STAGE_ARCH)"
 
 WORK_DIR="$(mktemp -d "${TMPDIR:-/tmp}/kimi-work-build.XXXXXXXX")"
 trap 'rm -rf -- "$WORK_DIR"' EXIT
@@ -93,7 +118,7 @@ LINUX_LEGACY="$(printf '%s\n' "$PARSED_LINUX" | cut -f3)"
   die "KIMI_LINUX_VERSION must be ${UPSTREAM_VERSION}-linux.N (got ${APP_VERSION})"
 info "Kimi Work $APP_VERSION (upstream $UPSTREAM_VERSION); Electron $ELECTRON_VERSION; Node $NODE_VERSION"
 
-ELECTRON_ARCHIVE="electron-v$ELECTRON_VERSION-linux-x64.zip"
+ELECTRON_ARCHIVE="electron-v$ELECTRON_VERSION-linux-$ELECTRON_ARCH.zip"
 ELECTRON_BASE="https://github.com/electron/electron/releases/download/v$ELECTRON_VERSION"
 download "$ELECTRON_BASE/$ELECTRON_ARCHIVE" "$CACHE_DIR/$ELECTRON_ARCHIVE"
 download "$ELECTRON_BASE/SHASUMS256.txt" "$CACHE_DIR/electron-$ELECTRON_VERSION-SHASUMS256.txt"
@@ -101,7 +126,7 @@ ELECTRON_SHA="$(awk -v file="$ELECTRON_ARCHIVE" '{ name=$2; sub(/^\*/, "", name)
 [[ -n "$ELECTRON_SHA" ]] || die "Electron checksum manifest has no $ELECTRON_ARCHIVE"
 verify_sha256 "$CACHE_DIR/$ELECTRON_ARCHIVE" "$ELECTRON_SHA"
 
-NODE_ARCHIVE="node-v$NODE_VERSION-linux-x64.tar.xz"
+NODE_ARCHIVE="node-v$NODE_VERSION-linux-$NODE_ARCH.tar.xz"
 NODE_BASE="https://nodejs.org/download/release/v$NODE_VERSION"
 download "$NODE_BASE/$NODE_ARCHIVE" "$CACHE_DIR/$NODE_ARCHIVE"
 download "$NODE_BASE/SHASUMS256.txt" "$CACHE_DIR/node-$NODE_VERSION-SHASUMS256.txt"
@@ -111,11 +136,12 @@ verify_sha256 "$CACHE_DIR/$NODE_ARCHIVE" "$NODE_SHA"
 
 readarray -t PYTHON < <(node -e '
   const b=require(process.argv[1]);
+  const target=process.argv[2];
   const mac=b.runtimes.python.asset;
-  const linux=mac.replace("aarch64-apple-darwin", "x86_64-unknown-linux-gnu");
+  const linux=mac.replace("aarch64-apple-darwin", target);
   if (linux===mac) throw new Error(`unsupported Python asset: ${mac}`);
   console.log(b.runtimes.python.releaseTag); console.log(linux);
-' "$MAC_DAIMON/bundle.json")
+' "$MAC_DAIMON/bundle.json" "$PYTHON_TARGET")
 PYTHON_RELEASE="${PYTHON[0]}"
 PYTHON_ASSET="${PYTHON[1]}"
 PYTHON_RELEASE_JSON="$CACHE_DIR/python-build-standalone-$PYTHON_RELEASE.json"
@@ -133,24 +159,29 @@ download "$PYTHON_URL" "$CACHE_DIR/$PYTHON_ASSET"
 verify_sha256 "$CACHE_DIR/$PYTHON_ASSET" "$PYTHON_SHA"
 
 UV_VERSION="0.11.29"
-UV_ARCHIVE="uv-x86_64-unknown-linux-gnu.tar.gz"
 UV_BASE="https://github.com/astral-sh/uv/releases/download/$UV_VERSION"
 download "$UV_BASE/$UV_ARCHIVE" "$CACHE_DIR/uv-$UV_VERSION-$UV_ARCHIVE"
-download "$UV_BASE/$UV_ARCHIVE.sha256" "$CACHE_DIR/uv-$UV_VERSION.sha256"
-UV_SHA="$(awk '{print $1; exit}' "$CACHE_DIR/uv-$UV_VERSION.sha256")"
+download "$UV_BASE/$UV_ARCHIVE.sha256" "$CACHE_DIR/uv-$UV_VERSION-$UV_ARCHIVE.sha256"
+UV_SHA="$(awk '{print $1; exit}' "$CACHE_DIR/uv-$UV_VERSION-$UV_ARCHIVE.sha256")"
 verify_sha256 "$CACHE_DIR/uv-$UV_VERSION-$UV_ARCHIVE" "$UV_SHA"
 
 WEBBRIDGE_MANIFEST="$CACHE_DIR/kimi-webbridge-version.json"
 refresh 'https://cdn.kimi.com/webbridge/latest/version.json' "$WEBBRIDGE_MANIFEST"
-readarray -t WEBBRIDGE < <(node -e 'const m=require(process.argv[1]); const b=m.binaries["linux-amd64"]; console.log(m.version); console.log(b.url); console.log(b.sha256)' "$WEBBRIDGE_MANIFEST")
+readarray -t WEBBRIDGE < <(node -e '
+  const m=require(process.argv[1]);
+  const key=process.argv[2];
+  const b=m.binaries[key];
+  if (!b?.url || !b.sha256) throw new Error(`webbridge manifest has no ${key}`);
+  console.log(m.version); console.log(b.url); console.log(b.sha256);
+' "$WEBBRIDGE_MANIFEST" "$WEBBRIDGE_KEY")
 WEBBRIDGE_VERSION="${WEBBRIDGE[0]}"
 WEBBRIDGE_URL="${WEBBRIDGE[1]}"
 WEBBRIDGE_SHA="${WEBBRIDGE[2]}"
-WEBBRIDGE_FILE="kimi-webbridge-$WEBBRIDGE_VERSION-linux-amd64"
+WEBBRIDGE_FILE="kimi-webbridge-$WEBBRIDGE_VERSION-$WEBBRIDGE_KEY"
 download "$WEBBRIDGE_URL" "$CACHE_DIR/$WEBBRIDGE_FILE"
 verify_sha256 "$CACHE_DIR/$WEBBRIDGE_FILE" "$WEBBRIDGE_SHA"
 
-STAGE_DIR="$WORK_DIR/kimi-work-$APP_VERSION-linux-x64"
+STAGE_DIR="$WORK_DIR/kimi-work-$APP_VERSION-$STAGE_ARCH"
 mkdir -p "$STAGE_DIR/resources/resources"
 unzip -q "$CACHE_DIR/$ELECTRON_ARCHIVE" -d "$STAGE_DIR"
 mv "$STAGE_DIR/electron" "$STAGE_DIR/kimi-work"
@@ -165,7 +196,7 @@ tar -xJf "$CACHE_DIR/$NODE_ARCHIVE" -C "$WORK_DIR/node" --strip-components=1
 rsync -a --exclude='*:com.apple.*' --exclude='node' "$MAC_RUNTIME/" "$STAGE_DIR/resources/resources/runtime/"
 cp "$WORK_DIR/node/bin/node" "$STAGE_DIR/resources/resources/runtime/node"
 chmod 0755 "$STAGE_DIR/resources/resources/runtime/node"
-printf '%s\n' "$NODE_VERSION-linux-x64" > "$STAGE_DIR/resources/resources/runtime/.node-stamp"
+printf '%s\n' "$NODE_VERSION-linux-$NODE_ARCH" > "$STAGE_DIR/resources/resources/runtime/.node-stamp"
 
 info "Installing Linux gateway dependencies"
 rsync -a --exclude='*:com.apple.*' --exclude='node_modules' "$MAC_GATEWAY/" "$STAGE_DIR/resources/resources/gateway/"
@@ -183,7 +214,7 @@ tar -xzf "$CACHE_DIR/$PYTHON_ASSET" -C "$DAIMON_DIR/runtime/python/cpython-3.12"
 tar -xzf "$CACHE_DIR/uv-$UV_VERSION-$UV_ARCHIVE" -C "$WORK_DIR/uv"
 cp "$(find "$WORK_DIR/uv" -type f -name uv -print -quit)" "$DAIMON_DIR/runtime/uv/uv"
 chmod 0755 "$DAIMON_DIR/runtime/uv/uv"
-node "$ROOT_DIR/scripts/patch-daimon-metadata.mjs" "$DAIMON_DIR/bundle.json" "$PYTHON_ASSET" "$PYTHON_SHA"
+node "$ROOT_DIR/scripts/patch-daimon-metadata.mjs" "$DAIMON_DIR/bundle.json" "$BUNDLE_PLATFORM" "$PYTHON_ASSET" "$PYTHON_SHA"
 (
   cd "$DAIMON_DIR/app/daimon"
   PATH="$WORK_DIR/node/bin:$PATH" npm rebuild better-sqlite3 node-pty --foreground-scripts
@@ -198,7 +229,7 @@ node -e 'const sqlite=require(process.argv[1]); const db=new sqlite(":memory:");
 PATH="$WORK_DIR/node/bin:$PATH" node -e 'require(process.argv[1])' "$DAIMON_DIR/app/daimon/node_modules/node-pty"
 
 mkdir -p "$BUILD_DIR"
-FINAL_DIR="$BUILD_DIR/kimi-work-$APP_VERSION-linux-x64"
+FINAL_DIR="$BUILD_DIR/kimi-work-$APP_VERSION-$STAGE_ARCH"
 [[ ! -e "$FINAL_DIR" ]] || die "output already exists: $FINAL_DIR (move it aside before rebuilding)"
 mv "$STAGE_DIR" "$FINAL_DIR"
 ln -sfn "$(basename "$FINAL_DIR")" "$BUILD_DIR/kimi-work"

@@ -18,8 +18,11 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  update:
+  check:
     runs-on: ubuntu-24.04
+    outputs:
+      changed: ${{ steps.upstream.outputs.changed }}
+      version: ${{ steps.upstream.outputs.version }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -38,9 +41,24 @@ jobs:
         run: |
           upstream="$(node scripts/fetch-upstream.mjs version)"
           packaged="$(sed -n 's/^version: //p' latest-linux.yml)"
+          arm_packaged=""
+          if [[ -f latest-linux-arm64.yml ]]; then
+            arm_packaged="$(sed -n 's/^version: //p' latest-linux-arm64.yml)"
+          fi
           version="$(node scripts/linux-version.mjs next "$upstream" "$packaged" "${FORCE:-false}")"
-          if [[ -z "$version" ]] && ! gh release view "kimi-work-v$packaged" >/dev/null 2>&1; then
-            version="$packaged"
+          if [[ -z "$version" ]]; then
+            # x64 feed is current; still rebuild if arm feed/assets lag or are missing.
+            if [[ "$arm_packaged" != "$packaged" ]]; then
+              version="$packaged"
+            elif ! gh release view "kimi-work-v$packaged" >/dev/null 2>&1; then
+              version="$packaged"
+            else
+              assets="$(gh release view "kimi-work-v$packaged" --json assets --jq '.assets[].name')"
+              echo "$assets" | grep -qx "kimi-work-$packaged-x86_64.AppImage" || version="$packaged"
+              echo "$assets" | grep -qx "kimi-work-$packaged-aarch64.AppImage" || version="$packaged"
+              echo "$assets" | grep -qx "latest-linux.yml" || version="$packaged"
+              echo "$assets" | grep -qx "latest-linux-arm64.yml" || version="$packaged"
+            fi
           fi
           if [[ -n "$version" ]]; then
             echo "changed=true" >> "$GITHUB_OUTPUT"
@@ -50,46 +68,97 @@ jobs:
           fi
           echo "upstream=$upstream" >> "$GITHUB_OUTPUT"
 
+  build:
+    needs: check
+    if: needs.check.outputs.changed == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-24.04
+            arch: x86_64
+            manifest: latest-linux.yml
+          - runner: ubuntu-24.04-arm
+            arch: aarch64
+            manifest: latest-linux-arm64.yml
+    runs-on: ${{ matrix.runner }}
+    name: build (${{ matrix.arch }})
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: jdx/mise-action@dad1bfd3df957f44999b559dd69dc1671cb4e9ea # v4.2.1
+        with:
+          cache: true
+
+      - run: pnpm install --frozen-lockfile
+
       - name: Install native build tools
-        if: steps.upstream.outputs.changed == 'true'
         run: |
           sudo apt-get update
           sudo apt-get install --yes build-essential p7zip-full python3 rsync xz-utils
 
       - name: Build AppImage
-        if: steps.upstream.outputs.changed == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
-          KIMI_LINUX_VERSION: ${{ steps.upstream.outputs.version }}
+          KIMI_LINUX_VERSION: ${{ needs.check.outputs.version }}
           KIMI_UPDATE_URL: https://github.com/${{ github.repository }}/releases/latest/download/
         run: |
           pnpm build
           pnpm package
 
+      - name: Upload AppImage
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: kimi-work-release-${{ matrix.arch }}
+          path: |
+            dist/*.AppImage
+            ${{ matrix.manifest }}
+          if-no-files-found: error
+
+  publish:
+    needs: [check, build]
+    if: needs.check.outputs.changed == 'true'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: kimi-work-release-*
+          merge-multiple: true
+          path: release-assets
+
+      - name: Stage release assets
+        run: |
+          mkdir -p dist
+          mv release-assets/*.AppImage dist/
+          cp release-assets/latest-linux.yml latest-linux.yml
+          cp release-assets/latest-linux-arm64.yml latest-linux-arm64.yml
+          ls -la dist latest-linux.yml latest-linux-arm64.yml
+
       - name: Publish release
-        if: steps.upstream.outputs.changed == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
-          VERSION: ${{ steps.upstream.outputs.version }}
+          VERSION: ${{ needs.check.outputs.version }}
         run: |
           tag="kimi-work-v$VERSION"
           if gh release view "$tag" >/dev/null 2>&1; then
-            gh release upload "$tag" dist/*.AppImage latest-linux.yml --clobber
+            gh release upload "$tag" dist/*.AppImage latest-linux.yml latest-linux-arm64.yml --clobber
             gh release edit "$tag" --latest
           else
-            gh release create "$tag" dist/*.AppImage latest-linux.yml \
+            gh release create "$tag" dist/*.AppImage latest-linux.yml latest-linux-arm64.yml \
               --latest --title "Kimi Work $VERSION for Linux" \
-              --notes "Unofficial Linux repackaging of Kimi Work ${VERSION%-linux.*} (packaging $VERSION)."
+              --notes "Unofficial Linux repackaging of Kimi Work ${VERSION%-linux.*} (packaging $VERSION; x86_64 and aarch64)."
           fi
 
       - name: Commit update metadata
-        if: steps.upstream.outputs.changed == 'true'
         env:
-          VERSION: ${{ steps.upstream.outputs.version }}
+          VERSION: ${{ needs.check.outputs.version }}
         run: |
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          git add latest-linux.yml
+          git add latest-linux.yml latest-linux-arm64.yml
           if ! git diff --cached --quiet; then
             git commit -m "Update Kimi Work to $VERSION"
             git push

@@ -7,8 +7,8 @@ built AppImage.
 ## Commands
 
 - `mise install && pnpm install --frozen-lockfile`: install project tools.
-- `pnpm build`: assemble the runnable Linux x86_64 app under `build/`.
-- `pnpm package`: produce the AppImage and `latest-linux.yml`.
+- `pnpm build`: assemble the runnable Linux app for the host CPU under `build/`.
+- `pnpm package`: produce the AppImage and matching `latest-linux*.yml`.
 - `pnpm test`: run formatting, syntax, and patcher tests.
 
 Use `apply_patch` for source edits. Keep platform patches narrow and asserted in
