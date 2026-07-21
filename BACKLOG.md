@@ -70,6 +70,7 @@ each upstream release before changing bundled code.
 - [ ] **Expand native-module smoke tests.** Exercise the gateway's Sharp, Canvas,
       clipboard, Koffi, and sqlite-vec modules in addition to the existing daemon
       checks.
-- [ ] **Prune inactive platform payloads.** Remove safely identifiable macOS,
-      Windows, and unused Unix prebuilds from multi-platform dependencies to reduce
-      AppImage size.
+- [x] **Prune inactive platform payloads.** Not worth the complexity: koffi and
+      node-pty ship foreign prebuilds (~32 MiB unpacked), but AppImage savings are
+      only ~6–10 MiB after compression. Optional natives (sharp, canvas, etc.) are
+      already Linux-only. Leave the multi-platform tarballs as installed.
