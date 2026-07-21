@@ -63,9 +63,10 @@ each upstream release before changing bundled code.
       `WAYLAND_DISPLAY` is preferred and X11 remains the fallback. Smoke-tested
       without `DISPLAY`. Compositors still need a data-control protocol (or
       XWayland fallback) for the native write to succeed.
-- [ ] **Port the selection toolbar.** Implement selected-text and selection-bounds
-      discovery through AT-SPI2, including GNOME and KDE behavior under X11 and
-      Wayland. It is currently disabled as unsupported.
+- [x] **Port the selection toolbar.** Not worth it: upstream needs AT-SPI2
+      selected-text and selection-bounds polling across GNOME/KDE and X11/Wayland,
+      with uneven app coverage and host a11y dependencies an AppImage cannot own.
+      Leave Linux as unsupported; README documents the gap.
 - [x] **Add Linux arm64 builds.** Native aarch64 CI selects arm64 Electron, Node,
       Python, uv, WebBridge, gateway dependencies, and AppImage runtime assets and
       publishes `latest-linux-arm64.yml` beside the x86_64 feed.

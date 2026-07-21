@@ -32,7 +32,7 @@ Known limitations:
 
 - Only glibc Linux on x86_64 and aarch64 is supported. musl distributions are
   not supported.
-- The selection toolbar is currently unavailable.
+- The selection toolbar is unsupported on Linux.
 - Closing the window hides Kimi in the system tray when Electron reports tray
   support (including KDE). If no tray is available, closing the window quits.
   Some hosts still report support but show no icon; that needs a desktop tray
