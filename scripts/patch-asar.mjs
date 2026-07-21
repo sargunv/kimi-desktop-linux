@@ -58,6 +58,21 @@ const replacements = [
     to:
       "const npmDir = process.platform === 'win32'\n  ? path.join(runtimeDir, 'node_modules', 'npm')\n  : path.join(runtimeDir, 'vendor', 'npm')",
   },
+  {
+    description: "skip tray setup when Electron reports no tray support",
+    expected: 1,
+    from: "function setupTray() {\n  let icon;",
+    to:
+      "function setupTray() {\n  if (!Tray.isSupported()) {\n    return;\n  }\n  let icon;",
+  },
+  {
+    description: "quit on close when no tray was created",
+    expected: 1,
+    from:
+      'this.baseWindow.on("close", (e) => {\n      if (!this.isQuitting) {\n        e.preventDefault();\n        if (this.baseWindow?.isFullScreen()) {\n          this.baseWindow.setFullScreen(false);\n        } else {\n          this.baseWindow?.hide();\n        }\n      }\n    });',
+    to:
+      'this.baseWindow.on("close", (e) => {\n      if (!this.isQuitting) {\n        if (!tray) {\n          e.preventDefault();\n          app.quit();\n          return;\n        }\n        e.preventDefault();\n        if (this.baseWindow?.isFullScreen()) {\n          this.baseWindow.setFullScreen(false);\n        } else {\n          this.baseWindow?.hide();\n        }\n      }\n    });',
+  },
 ];
 
 function countOccurrences(haystack, needle) {

@@ -9,11 +9,10 @@ each upstream release before changing bundled code.
       treated Linux like Windows (`runtime/node_modules/npm`), while the
       repackaged runtime keeps the macOS `runtime/vendor/npm` layout. Linux now
       uses the vendor path.
-- [ ] **Make closing the window safe without a tray.** Kimi currently hides on
-      close, which can leave it inaccessible on desktops without tray support.
-      Prefer keeping close-to-tray where the tray works (e.g. KDE). Offer a
-      close-to-tray setting that defaults off only on environments without a
-      usable tray, or quit when tray setup fails.
+- [x] **Make closing the window safe without a tray.** Best-effort: skip tray
+      setup when `Tray.isSupported()` is false, and quit on close if no tray was
+      created. Desktops where Electron still reports support but shows no icon
+      (e.g. some GNOME setups) remain an Electron/host limitation.
 - [ ] **Fix terminal launching.** Detect installed terminal emulators before
       spawning them, use emulator-specific working-directory arguments, and report
       asynchronous launch failures.
