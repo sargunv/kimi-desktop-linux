@@ -53,6 +53,7 @@ jobs:
       - name: Build AppImage
         if: steps.upstream.outputs.changed == 'true'
         env:
+          GH_TOKEN: ${{ github.token }}
           KIMI_UPDATE_URL: https://github.com/${{ github.repository }}/releases/latest/download/
         run: |
           pnpm build

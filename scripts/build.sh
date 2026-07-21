@@ -12,10 +12,14 @@ require() { command -v "$1" >/dev/null 2>&1 || die "missing required command: $1
 download() {
   local url="$1"
   local output="$2"
+  local -a headers=()
+  if [[ "$url" == https://api.github.com/* && -n "${GH_TOKEN:-}" ]]; then
+    headers+=(--header "Authorization: Bearer $GH_TOKEN")
+  fi
   if [[ ! -s "$output" ]]; then
     info "Downloading $(basename "$output")"
     mkdir -p "$(dirname "$output")"
-    curl --fail --location --retry 3 --output "$output.part" "$url"
+    curl --fail --location --retry 3 "${headers[@]}" --output "$output.part" "$url"
     mv "$output.part" "$output"
   fi
 }
@@ -106,6 +110,7 @@ PYTHON_RELEASE="${PYTHON[0]}"
 PYTHON_ASSET="${PYTHON[1]}"
 PYTHON_RELEASE_JSON="$CACHE_DIR/python-build-standalone-$PYTHON_RELEASE.json"
 download "https://api.github.com/repos/astral-sh/python-build-standalone/releases/tags/$PYTHON_RELEASE" "$PYTHON_RELEASE_JSON"
+unset GH_TOKEN
 readarray -t PYTHON_DOWNLOAD < <(node -e '
   const r=require(process.argv[1]); const name=process.argv[2];
   const a=r.assets.find((item)=>item.name===name);
