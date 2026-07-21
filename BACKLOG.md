@@ -18,9 +18,11 @@ each upstream release before changing bundled code.
       then `konsole --workdir`, then common terminals / `x-terminal-emulator` /
       `xterm`. Exhaustive emulator matrices and async failure reporting are out
       of scope.
-- [ ] **Restore Chromium sandboxing.** The AppImage launcher currently passes
-      `--no-sandbox`. Use the user-namespace sandbox where supported or provide a
-      package format that can install the sandbox helper correctly.
+- [x] **Restore Chromium sandboxing.** Not viable for a portable AppImage: FUSE
+      mounts are nosuid so setuid `chrome-sandbox` cannot work, and user-namespace
+      sandboxing depends on distro policy (e.g. Ubuntu AppArmor) that AppImages
+      cannot install. Keep `--no-sandbox`; prefer a distro-native package for
+      higher-risk deployments (see SECURITY.md).
 - [ ] **Validate AppImage updates end to end.** Test discovery, download,
       replacement, relaunch, and rollback behavior using two real release versions.
 
