@@ -9,3 +9,7 @@ node = "24.15.0"
 experimental = true
 lockfile = true
 minimum_release_age = "7d"
+
+[tasks.actions-up]
+description = "Update and pin GitHub Actions steps."
+run = "pnpm dlx actions-up"
