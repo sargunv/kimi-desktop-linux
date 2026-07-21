@@ -115,6 +115,63 @@ async function listLinuxWorkbenchOpenWithApplications(path2, locale) {
 }
 `.trim();
 
+const linuxLaunchAtLoginHelpers = `
+function linuxAutostartDir() {
+  const home = process.env.HOME || app.getPath("home") || "";
+  const configHome = process.env.XDG_CONFIG_HOME || (home ? join(home, ".config") : "");
+  return configHome ? join(configHome, "autostart") : "";
+}
+function linuxAutostartDesktopPath() {
+  const dir2 = linuxAutostartDir();
+  return dir2 ? join(dir2, "kimi-work.desktop") : "";
+}
+function linuxAutostartExecPath() {
+  const appImage = process.env.APPIMAGE;
+  if (typeof appImage === "string" && appImage.trim()) {
+    return appImage.trim();
+  }
+  return process.execPath;
+}
+function quoteLinuxDesktopExecArg(value) {
+  return \`"\${String(value).replace(/\\\\/g, "\\\\\\\\").replace(/"/g, '\\\\"')}"\`;
+}
+function buildLinuxAutostartDesktopEntry() {
+  const name = String(app.name || app.getName() || "Kimi Work").replace(/[\\r\\n]/g, " ").trim() || "Kimi Work";
+  return [
+    "[Desktop Entry]",
+    "Type=Application",
+    \`Name=\${name}\`,
+    "Comment=Kimi Work",
+    \`Exec=\${quoteLinuxDesktopExecArg(linuxAutostartExecPath())}\`,
+    "Terminal=false",
+    "X-GNOME-Autostart-enabled=true",
+    "StartupWMClass=Kimi",
+    ""
+  ].join("\\n");
+}
+function readLinuxLaunchAtLogin() {
+  const path2 = linuxAutostartDesktopPath();
+  return Boolean(path2 && existsSync$1(path2));
+}
+function applyLinuxLaunchAtLogin(enabled) {
+  const dir2 = linuxAutostartDir();
+  const path2 = linuxAutostartDesktopPath();
+  if (!dir2 || !path2) {
+    throw new Error("XDG autostart directory is unavailable");
+  }
+  if (!enabled) {
+    if (existsSync$1(path2)) {
+      unlinkSync(path2);
+    }
+    return;
+  }
+  if (!existsSync$1(dir2)) {
+    mkdirSync(dir2, { recursive: true });
+  }
+  writeFileSync(path2, buildLinuxAutostartDesktopEntry(), "utf-8");
+}
+`.trim();
+
 const replacements = [
   {
     description: "remove the redundant Linux application menu",
@@ -248,6 +305,29 @@ async function listWorkbenchOpenWithApplications(path2, isDirectory, locale) {`,
       '  if (process.platform === "linux") {\n    const targetDir = isDirectory ? path2 : dirname$2(path2);\n    if (applicationId === "file-manager") {\n      spawnDetached("xdg-open", [targetDir]);\n      return true;\n    }\n    if (applicationId === "terminal") {\n      spawnDetached("x-terminal-emulator", ["--working-directory", targetDir]);\n      return true;\n    }\n  }',
     to:
       `  if (process.platform === "linux") {\n    const targetDir = isDirectory ? path2 : dirname$2(path2);\n    if (applicationId === "file-manager") {\n      spawnDetached("xdg-open", [targetDir]);\n      return true;\n    }\n    if (applicationId === "terminal") {\n      spawnDetached("sh", ["-c", ${JSON.stringify(linuxOpenTerminalShell)}, "kimi-open-terminal", targetDir]);\n      return true;\n    }\n    const desktopPath = resolveLinuxDesktopFile(applicationId);\n    if (!desktopPath) {\n      return false;\n    }\n    spawnDetached("gio", ["launch", desktopPath, path2]);\n    return true;\n  }`,
+  },
+  {
+    description: "inject Linux XDG launch-at-login helpers",
+    expected: 1,
+    from: "function readLaunchAtLogin() {",
+    to: `${linuxLaunchAtLoginHelpers}
+function readLaunchAtLogin() {`,
+  },
+  {
+    description: "read launch-at-login from XDG autostart on Linux",
+    expected: 1,
+    from:
+      "function readLaunchAtLogin() {\n  try {\n    return app.getLoginItemSettings().openAtLogin === true;\n  } catch (err) {\n    KLogMain.warn(TAG$x, `读取登录项失败: ${err instanceof Error ? err.message : String(err)}`);\n    return false;\n  }\n}",
+    to:
+      'function readLaunchAtLogin() {\n  try {\n    if (process.platform === "linux") {\n      return readLinuxLaunchAtLogin();\n    }\n    return app.getLoginItemSettings().openAtLogin === true;\n  } catch (err) {\n    KLogMain.warn(TAG$x, `读取登录项失败: ${err instanceof Error ? err.message : String(err)}`);\n    return false;\n  }\n}',
+  },
+  {
+    description: "apply launch-at-login via XDG autostart on Linux",
+    expected: 1,
+    from:
+      "function applyLaunchAtLogin(enabled) {\n  try {\n    app.setLoginItemSettings({ openAtLogin: enabled });\n  } catch (err) {\n    KLogMain.error(TAG$x, `设置登录项失败: ${err instanceof Error ? err.message : String(err)}`);\n  }\n}",
+    to:
+      'function applyLaunchAtLogin(enabled) {\n  try {\n    if (process.platform === "linux") {\n      applyLinuxLaunchAtLogin(enabled);\n      return;\n    }\n    app.setLoginItemSettings({ openAtLogin: enabled });\n  } catch (err) {\n    KLogMain.error(TAG$x, `设置登录项失败: ${err instanceof Error ? err.message : String(err)}`);\n  }\n}',
   },
 ];
 
