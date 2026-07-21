@@ -41,10 +41,17 @@ jobs:
         run: |
           upstream="$(node scripts/fetch-upstream.mjs version)"
           packaged="$(sed -n 's/^version: //p' latest-linux.yml)"
-          arm_packaged="$(sed -n 's/^version: //p' latest-linux-arm64.yml 2>/dev/null || true)"
+          arm_packaged=""
+          if [[ -f latest-linux-arm64.yml ]]; then
+            arm_packaged="$(sed -n 's/^version: //p' latest-linux-arm64.yml)"
+          fi
           tag="kimi-work-v$upstream"
           need_release=false
-          if [[ "$upstream" != "$packaged" || "$upstream" != "$arm_packaged" || "$FORCE" == "true" ]]; then
+          if [[ "$FORCE" == "true" ]]; then
+            need_release=true
+          elif [[ "$upstream" != "$packaged" ]]; then
+            need_release=true
+          elif [[ "$upstream" != "$arm_packaged" ]]; then
             need_release=true
           elif ! gh release view "$tag" >/dev/null 2>&1; then
             need_release=true
