@@ -16,6 +16,7 @@
     "test": "pnpm check && node --test tests/*.test.mjs"
   },
   "devDependencies": {
-    "@electron/asar": "4.2.0"
+    "@electron/asar": "4.2.0",
+    "@napi-rs/cli": "3.7.0"
   }
 }

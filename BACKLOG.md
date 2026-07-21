@@ -55,9 +55,11 @@ each upstream release before changing bundled code.
 
 ## Portability and coverage
 
-- [ ] **Support clipboard access on pure Wayland.** The current native clipboard
-      addon uses its X11 backend and works in Wayland sessions through XWayland.
-      Rebuild it with Wayland support and test without `DISPLAY`.
+- [x] **Support clipboard access on pure Wayland.** Rebuild
+      `@mariozechner/clipboard` during packaging with `--features wayland` so
+      `WAYLAND_DISPLAY` is preferred and X11 remains the fallback. Smoke-tested
+      without `DISPLAY`. Compositors still need a data-control protocol (or
+      XWayland fallback) for the native write to succeed.
 - [ ] **Port the selection toolbar.** Implement selected-text and selection-bounds
       discovery through AT-SPI2, including GNOME and KDE behavior under X11 and
       Wayland. It is currently disabled as unsupported.
