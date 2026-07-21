@@ -4,21 +4,10 @@ set -Eeuo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 CACHE_DIR="${KIMI_CACHE_DIR:-$ROOT_DIR/.cache/downloads}"
 BUILD_DIR="${KIMI_BUILD_DIR:-$ROOT_DIR/build}"
-WINDOWS_INSTALLER="${WINDOWS_INSTALLER:-}"
-MACOS_INSTALLER="${MACOS_INSTALLER:-}"
 
-info() { printf '[kimi-linux] %s\n' "$*" >&2; }
-die() { printf '[kimi-linux] error: %s\n' "$*" >&2; exit 1; }
+info() { printf '[kimi-work-linux] %s\n' "$*" >&2; }
+die() { printf '[kimi-work-linux] error: %s\n' "$*" >&2; exit 1; }
 require() { command -v "$1" >/dev/null 2>&1 || die "missing required command: $1"; }
-
-find_one() {
-  local pattern="$1"
-  local label="$2"
-  local -a matches=()
-  while IFS= read -r -d '' file; do matches+=("$file"); done < <(find "$ROOT_DIR/original" -maxdepth 1 -type f -name "$pattern" -print0)
-  ((${#matches[@]} == 1)) || die "expected one $label in original/, found ${#matches[@]}"
-  printf '%s\n' "${matches[0]}"
-}
 
 download() {
   local url="$1"
@@ -29,6 +18,15 @@ download() {
     curl --fail --location --retry 3 --output "$output.part" "$url"
     mv "$output.part" "$output"
   fi
+}
+
+refresh() {
+  local url="$1"
+  local output="$2"
+  info "Refreshing $(basename "$output")"
+  mkdir -p "$(dirname "$output")"
+  curl --fail --location --retry 3 --output "$output.part" "$url"
+  mv "$output.part" "$output"
 }
 
 verify_sha256() {
@@ -52,43 +50,34 @@ extract_7z() {
   ((status <= 1)) || die "7z failed with status $status while extracting $(basename "$archive")"
 }
 
-for tool in 7z awk curl find node npm pnpm rsync sha256sum strings tar unzip xz; do require "$tool"; done
-[[ "$(uname -m)" == "x86_64" ]] || die "this first implementation targets Linux x86_64"
+for tool in 7z awk curl find node npm rsync sha256sum tar unzip xz; do require "$tool"; done
+[[ "$(uname -m)" == "x86_64" ]] || die "only Linux x86_64 is supported"
 
-[[ -n "$WINDOWS_INSTALLER" ]] || WINDOWS_INSTALLER="$(find_one '*.exe' 'Windows installer')"
-[[ -n "$MACOS_INSTALLER" ]] || MACOS_INSTALLER="$(find_one '*.dmg' 'macOS installer')"
-[[ -f "$WINDOWS_INSTALLER" ]] || die "Windows installer does not exist: $WINDOWS_INSTALLER"
-[[ -f "$MACOS_INSTALLER" ]] || die "macOS installer does not exist: $MACOS_INSTALLER"
-
-WORK_DIR="$(mktemp -d "${TMPDIR:-/tmp}/kimi-linux-build.XXXXXXXX")"
+WORK_DIR="$(mktemp -d "${TMPDIR:-/tmp}/kimi-work-build.XXXXXXXX")"
 trap 'rm -rf -- "$WORK_DIR"' EXIT
 
-info "Extracting the Windows installer"
-extract_7z "$WINDOWS_INSTALLER" "$WORK_DIR/windows-installer"
-WINDOWS_PAYLOAD="$(find "$WORK_DIR/windows-installer" -type f -name 'app-64.7z' -print -quit)"
-[[ -n "$WINDOWS_PAYLOAD" ]] || die "Windows installer has no app-64.7z payload"
-extract_7z "$WINDOWS_PAYLOAD" "$WORK_DIR/windows-app"
-WINDOWS_ASAR="$WORK_DIR/windows-app/resources/app.asar"
-WINDOWS_EXE="$WORK_DIR/windows-app/Kimi.exe"
-[[ -f "$WINDOWS_ASAR" && -f "$WINDOWS_EXE" ]] || die "Windows application payload is incomplete"
+info "Resolving and verifying the latest official Kimi Work release"
+SOURCE_ARCHIVE="$(node "$ROOT_DIR/scripts/fetch-upstream.mjs" fetch "$CACHE_DIR")"
 
-info "Extracting the macOS installer"
-# Gateway dependencies are reinstalled below. Excluding them also avoids 7-Zip
-# rejecting npm's relative node_modules/.bin links while reading the DMG.
-extract_7z "$MACOS_INSTALLER" "$WORK_DIR/macos-installer" '-xr!*/resources/gateway/node_modules/*'
-MAC_ASAR="$(find "$WORK_DIR/macos-installer" -path '*/Kimi.app/Contents/Resources/app.asar' -print -quit)"
-[[ -n "$MAC_ASAR" ]] || die "macOS installer has no embedded Kimi.app"
+info "Extracting $(basename "$SOURCE_ARCHIVE")"
+# Gateway dependencies are reinstalled below. Excluding them avoids carrying
+# macOS native packages and npm's relative node_modules/.bin links. Frameworks
+# are also irrelevant and contain symlink chains that 7-Zip rejects on Linux.
+extract_7z "$SOURCE_ARCHIVE" "$WORK_DIR/upstream" \
+  '-xr!*/resources/gateway/node_modules/*' '-xr!*/Frameworks/*'
+MAC_ASAR="$(find "$WORK_DIR/upstream" -path '*/Kimi.app/Contents/Resources/app.asar' -print -quit)"
+[[ -n "$MAC_ASAR" ]] || die "upstream archive has no Kimi.app"
 MAC_RESOURCES="$(dirname "$MAC_ASAR")"
 MAC_RUNTIME="$MAC_RESOURCES/resources/runtime"
 MAC_DAIMON="$MAC_RESOURCES/resources/daimon-bundle"
 MAC_GATEWAY="$MAC_RESOURCES/resources/gateway"
-[[ -d "$MAC_RUNTIME" && -d "$MAC_DAIMON" && -d "$MAC_GATEWAY" ]] || die "macOS workspace resources are incomplete"
+[[ -d "$MAC_RUNTIME" && -d "$MAC_DAIMON" && -d "$MAC_GATEWAY" ]] || die "upstream workspace resources are incomplete"
 
-ELECTRON_VERSION="$(strings "$WINDOWS_EXE" | sed -n 's/.*Electron v\([0-9][0-9.]*\).*/\1/p' | head -1)"
+ELECTRON_VERSION="$(unzip -p "$SOURCE_ARCHIVE" 'Kimi.app/Contents/Frameworks/Electron Framework.framework/Versions/A/Resources/Info.plist' | sed -n '/<key>CFBundleVersion<\/key>/{n;s/.*<string>\([^<]*\)<\/string>.*/\1/p;q;}')"
 NODE_VERSION="$(sed 's/-darwin-arm64$//' "$MAC_RUNTIME/.node-stamp" | head -1)"
-APP_VERSION="$(node -e 'const a=require("@electron/asar"); console.log(JSON.parse(a.extractFile(process.argv[1], "package.json")).version)' "$WINDOWS_ASAR")"
+APP_VERSION="$(node -e 'const a=require("@electron/asar"); console.log(JSON.parse(a.extractFile(process.argv[1], "package.json")).version)' "$MAC_ASAR")"
 [[ -n "$ELECTRON_VERSION" && -n "$NODE_VERSION" && -n "$APP_VERSION" ]] || die "failed to detect bundled versions"
-info "Kimi $APP_VERSION; Electron $ELECTRON_VERSION; Node $NODE_VERSION"
+info "Kimi Work $APP_VERSION; Electron $ELECTRON_VERSION; Node $NODE_VERSION"
 
 ELECTRON_ARCHIVE="electron-v$ELECTRON_VERSION-linux-x64.zip"
 ELECTRON_BASE="https://github.com/electron/electron/releases/download/v$ELECTRON_VERSION"
@@ -106,9 +95,25 @@ NODE_SHA="$(awk -v file="$NODE_ARCHIVE" '{ name=$2; sub(/^\*/, "", name); if (na
 [[ -n "$NODE_SHA" ]] || die "Node checksum manifest has no $NODE_ARCHIVE"
 verify_sha256 "$CACHE_DIR/$NODE_ARCHIVE" "$NODE_SHA"
 
-PYTHON_ASSET="cpython-3.12.13+20260623-x86_64-unknown-linux-gnu-install_only.tar.gz"
-PYTHON_SHA="9fa869d69be54f6b8eeae64272fbd9bb0646e0e1a8da9d80e51ba5a3bee48930"
-PYTHON_URL="https://github.com/astral-sh/python-build-standalone/releases/download/20260623/cpython-3.12.13%2B20260623-x86_64-unknown-linux-gnu-install_only.tar.gz"
+readarray -t PYTHON < <(node -e '
+  const b=require(process.argv[1]);
+  const mac=b.runtimes.python.asset;
+  const linux=mac.replace("aarch64-apple-darwin", "x86_64-unknown-linux-gnu");
+  if (linux===mac) throw new Error(`unsupported Python asset: ${mac}`);
+  console.log(b.runtimes.python.releaseTag); console.log(linux);
+' "$MAC_DAIMON/bundle.json")
+PYTHON_RELEASE="${PYTHON[0]}"
+PYTHON_ASSET="${PYTHON[1]}"
+PYTHON_RELEASE_JSON="$CACHE_DIR/python-build-standalone-$PYTHON_RELEASE.json"
+download "https://api.github.com/repos/astral-sh/python-build-standalone/releases/tags/$PYTHON_RELEASE" "$PYTHON_RELEASE_JSON"
+readarray -t PYTHON_DOWNLOAD < <(node -e '
+  const r=require(process.argv[1]); const name=process.argv[2];
+  const a=r.assets.find((item)=>item.name===name);
+  if (!a?.browser_download_url || !a.digest?.startsWith("sha256:")) throw new Error(`release has no verified ${name}`);
+  console.log(a.browser_download_url); console.log(a.digest.slice(7));
+' "$PYTHON_RELEASE_JSON" "$PYTHON_ASSET")
+PYTHON_URL="${PYTHON_DOWNLOAD[0]}"
+PYTHON_SHA="${PYTHON_DOWNLOAD[1]}"
 download "$PYTHON_URL" "$CACHE_DIR/$PYTHON_ASSET"
 verify_sha256 "$CACHE_DIR/$PYTHON_ASSET" "$PYTHON_SHA"
 
@@ -121,7 +126,7 @@ UV_SHA="$(awk '{print $1; exit}' "$CACHE_DIR/uv-$UV_VERSION.sha256")"
 verify_sha256 "$CACHE_DIR/uv-$UV_VERSION-$UV_ARCHIVE" "$UV_SHA"
 
 WEBBRIDGE_MANIFEST="$CACHE_DIR/kimi-webbridge-version.json"
-download 'https://cdn.kimi.com/webbridge/latest/version.json' "$WEBBRIDGE_MANIFEST"
+refresh 'https://cdn.kimi.com/webbridge/latest/version.json' "$WEBBRIDGE_MANIFEST"
 readarray -t WEBBRIDGE < <(node -e 'const m=require(process.argv[1]); const b=m.binaries["linux-amd64"]; console.log(m.version); console.log(b.url); console.log(b.sha256)' "$WEBBRIDGE_MANIFEST")
 WEBBRIDGE_VERSION="${WEBBRIDGE[0]}"
 WEBBRIDGE_URL="${WEBBRIDGE[1]}"
@@ -135,8 +140,8 @@ mkdir -p "$STAGE_DIR/resources/resources"
 unzip -q "$CACHE_DIR/$ELECTRON_ARCHIVE" -d "$STAGE_DIR"
 mv "$STAGE_DIR/electron" "$STAGE_DIR/kimi-work"
 
-info "Patching the application for Linux window management and updates"
-node "$ROOT_DIR/scripts/patch-asar.mjs" "$WINDOWS_ASAR" "$STAGE_DIR/resources/app.asar" "$STAGE_DIR/kimi-work.png"
+info "Patching Kimi Work for Linux window management and updates"
+node "$ROOT_DIR/scripts/patch-asar.mjs" "$MAC_ASAR" "$STAGE_DIR/resources/app.asar" "$STAGE_DIR/kimi-work.png"
 
 info "Staging the matching Linux Node runtime"
 mkdir -p "$WORK_DIR/node" "$STAGE_DIR/resources/resources/runtime"

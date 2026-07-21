@@ -1,0 +1,8 @@
+version: 3.1.2
+files:
+  - url: kimi-work-3.1.2-x86_64.AppImage
+    sha512: 1HmydZLr9sfBGsJ+tYeTC1iUoX0KElf2njn8OWkd48omCyTUmoD9g5wbIGnjcPCynZ66qafKoNj86bZmUsNhYg==
+    size: 449985016
+path: kimi-work-3.1.2-x86_64.AppImage
+sha512: 1HmydZLr9sfBGsJ+tYeTC1iUoX0KElf2njn8OWkd48omCyTUmoD9g5wbIGnjcPCynZ66qafKoNj86bZmUsNhYg==
+releaseDate: '2026-07-21T08:32:06.226Z'

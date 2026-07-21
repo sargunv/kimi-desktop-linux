@@ -1,8 +1,8 @@
 {
-  "name": "kimi-work-linux",
+  "name": "kimi-desktop-linux",
   "version": "0.1.0",
   "private": true,
-  "description": "Repackage user-supplied Kimi Work installers for Linux",
+  "description": "Repackage the latest Kimi Work desktop release for Linux",
   "type": "module",
   "packageManager": "pnpm@11.15.1",
   "engines": {
@@ -10,10 +10,9 @@
   },
   "scripts": {
     "build": "bash scripts/build.sh",
-    "check": "dprint check && node --check scripts/patch-asar.mjs && node --check scripts/prepare-gateway.mjs && node --check scripts/patch-daimon-metadata.mjs && bash -n scripts/*.sh packaging/appimage/AppRun",
+    "check": "dprint check && actionlint && node --check scripts/*.mjs && bash -n scripts/*.sh packaging/appimage/AppRun",
     "fmt": "dprint fmt",
-    "package:appimage": "bash scripts/package-appimage.sh",
-    "package:tar": "bash scripts/package-tar.sh",
+    "package": "bash scripts/package-appimage.sh",
     "test": "pnpm check && node --test tests/*.test.mjs"
   },
   "devDependencies": {

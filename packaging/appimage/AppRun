@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 APP_ROOT="${APPDIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)}"
+if [[ -z "${KIMI_UPDATE_URL:-}" && -s "$APP_ROOT/opt/kimi-work/update-url" ]]; then
+  read -r KIMI_UPDATE_URL < "$APP_ROOT/opt/kimi-work/update-url"
+  export KIMI_UPDATE_URL
+fi
 exec "$APP_ROOT/opt/kimi-work/start-kimi-work" "$@"
-

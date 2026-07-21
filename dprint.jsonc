@@ -6,5 +6,5 @@
   "markdown": {},
   "json": {},
   "includes": ["**/*.{json,jsonc,md}"],
-  "excludes": ["build/**", "dist/**", "node_modules/**", "original/**"],
+  "excludes": ["build/**", "dist/**", "node_modules/**"],
 }

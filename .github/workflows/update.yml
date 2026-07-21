@@ -1,0 +1,88 @@
+name: Update Kimi Work
+
+on:
+  schedule:
+    - cron: "17 8 * * *"
+  workflow_dispatch:
+    inputs:
+      force:
+        description: Rebuild the current upstream version
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: update-kimi-work
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+
+      - uses: jdx/mise-action@5228313ee0372e111a38da051671ca30fc5a96db
+        with:
+          cache: true
+
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm test
+
+      - name: Check upstream version
+        id: upstream
+        env:
+          FORCE: ${{ inputs.force }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          upstream="$(node scripts/fetch-upstream.mjs version)"
+          packaged="$(sed -n 's/^version: //p' latest-linux.yml)"
+          if [[ "$upstream" != "$packaged" || "$FORCE" == "true" ]] || \
+            ! gh release view "kimi-work-v$upstream" >/dev/null 2>&1; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+          echo "version=$upstream" >> "$GITHUB_OUTPUT"
+
+      - name: Install native build tools
+        if: steps.upstream.outputs.changed == 'true'
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes build-essential p7zip-full python3 rsync xz-utils
+
+      - name: Build AppImage
+        if: steps.upstream.outputs.changed == 'true'
+        env:
+          KIMI_UPDATE_URL: https://github.com/${{ github.repository }}/releases/latest/download/
+        run: |
+          pnpm build
+          pnpm package
+
+      - name: Publish release
+        if: steps.upstream.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.upstream.outputs.version }}
+        run: |
+          tag="kimi-work-v$VERSION"
+          if gh release view "$tag" >/dev/null 2>&1; then
+            gh release upload "$tag" dist/*.AppImage latest-linux.yml --clobber
+            gh release edit "$tag" --latest
+          else
+            gh release create "$tag" dist/*.AppImage latest-linux.yml \
+              --latest --title "Kimi Work $VERSION for Linux" \
+              --notes "Unofficial Linux repackaging of Kimi Work $VERSION."
+          fi
+
+      - name: Commit update metadata
+        if: steps.upstream.outputs.changed == 'true'
+        env:
+          VERSION: ${{ steps.upstream.outputs.version }}
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add latest-linux.yml
+          if ! git diff --cached --quiet; then
+            git commit -m "Update Kimi Work to $VERSION"
+            git push
+          fi
