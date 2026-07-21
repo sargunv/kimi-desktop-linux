@@ -13,10 +13,11 @@ each upstream release before changing bundled code.
       setup when `Tray.isSupported()` is false, and quit on close if no tray was
       created. Desktops where Electron still reports support but shows no icon
       (e.g. some GNOME setups) remain an Electron/host limitation.
-- [x] **Fix terminal launching.** Best-effort: prefer `xdg-terminal-exec` when
-      present, then `konsole --workdir` (modern KDE), then common terminals /
-      `x-terminal-emulator` / `xterm`. Exhaustive emulator matrices and async
-      failure reporting are out of scope.
+- [x] **Fix terminal launching.** Best-effort: prefer KDE `kdeglobals`
+      `TerminalApplication` via `kreadconfig6`/`5`, then `xdg-terminal-exec`,
+      then `konsole --workdir`, then common terminals / `x-terminal-emulator` /
+      `xterm`. Exhaustive emulator matrices and async failure reporting are out
+      of scope.
 - [ ] **Restore Chromium sandboxing.** The AppImage launcher currently passes
       `--no-sandbox`. Use the user-namespace sandbox where supported or provide a
       package format that can install the sandbox helper correctly.

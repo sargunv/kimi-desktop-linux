@@ -20,6 +20,8 @@ test("ASAR patcher contains fail-closed replacement counts", async () => {
   assert.match(source, /if \(!tray\)/);
   assert.match(source, /xdg-terminal-exec/);
   assert.match(source, /konsole --workdir/);
+  assert.match(source, /kreadconfig6/);
+  assert.match(source, /TerminalApplication/);
 });
 
 test("Linux update manifest matches its AppImage", async () => {
