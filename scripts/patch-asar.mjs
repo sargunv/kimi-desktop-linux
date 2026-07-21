@@ -147,12 +147,12 @@ const replacements = [
       'function setupAutoUpdater() {\n  if (process.platform === "linux" && !process.env.KIMI_UPDATE_URL) {\n    return;\n  }\n  if (isDev && !process.env.KIMI_UPDATE_URL) {',
   },
   {
-    description: "allow authenticated private Linux update feeds",
+    description: "enable Linux prerelease updates and optional private feed auth",
     expected: 1,
     from:
       'autoUpdater.forceDevUpdateConfig = true;\n    autoUpdater.setFeedURL({ provider: "generic", url: envUrl });',
     to:
-      'autoUpdater.forceDevUpdateConfig = true;\n    autoUpdater.setFeedURL({ provider: "generic", url: envUrl });\n    const updateToken = process.env.KIMI_UPDATE_TOKEN;\n    if (updateToken) {\n      autoUpdater.requestHeaders = { Authorization: `Bearer ${updateToken}`, Accept: "application/octet-stream" };\n    }',
+      'autoUpdater.forceDevUpdateConfig = true;\n    autoUpdater.allowPrerelease = true;\n    autoUpdater.setFeedURL({ provider: "generic", url: envUrl });\n    const updateToken = process.env.KIMI_UPDATE_TOKEN;\n    if (updateToken) {\n      autoUpdater.requestHeaders = { Authorization: `Bearer ${updateToken}`, Accept: "application/octet-stream" };\n    }',
   },
   {
     description: "use the bundled vendor npm layout on Linux managed commands",
@@ -230,6 +230,20 @@ try {
   }
 
   await writeFile(mainPath, main);
+
+  const linuxVersion = process.env.KIMI_LINUX_VERSION?.trim();
+  if (linuxVersion) {
+    if (!/^\d+\.\d+\.\d+-linux\.\d+$/.test(linuxVersion)) {
+      throw new Error(
+        `KIMI_LINUX_VERSION must look like x.y.z-linux.N (got ${linuxVersion})`,
+      );
+    }
+    const packagePath = join(workDir, "package.json");
+    const packageJson = JSON.parse(await readFile(packagePath, "utf8"));
+    packageJson.version = linuxVersion;
+    await writeFile(packagePath, `${JSON.stringify(packageJson, null, 2)}\n`);
+  }
+
   await asar.createPackage(workDir, outputAsar);
   await writeFile(outputIcon, await readFile(join(workDir, "assets", "icon.png")));
 } finally {

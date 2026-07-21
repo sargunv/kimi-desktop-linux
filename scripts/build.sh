@@ -79,9 +79,19 @@ MAC_GATEWAY="$MAC_RESOURCES/resources/gateway"
 
 ELECTRON_VERSION="$(unzip -p "$SOURCE_ARCHIVE" 'Kimi.app/Contents/Frameworks/Electron Framework.framework/Versions/A/Resources/Info.plist' | sed -n '/<key>CFBundleVersion<\/key>/{n;s/.*<string>\([^<]*\)<\/string>.*/\1/p;q;}')"
 NODE_VERSION="$(sed 's/-darwin-arm64$//' "$MAC_RUNTIME/.node-stamp" | head -1)"
-APP_VERSION="$(node -e 'const a=require("@electron/asar"); console.log(JSON.parse(a.extractFile(process.argv[1], "package.json")).version)' "$MAC_ASAR")"
-[[ -n "$ELECTRON_VERSION" && -n "$NODE_VERSION" && -n "$APP_VERSION" ]] || die "failed to detect bundled versions"
-info "Kimi Work $APP_VERSION; Electron $ELECTRON_VERSION; Node $NODE_VERSION"
+UPSTREAM_VERSION="$(node -e 'const a=require("@electron/asar"); console.log(JSON.parse(a.extractFile(process.argv[1], "package.json")).version)' "$MAC_ASAR")"
+[[ -n "$ELECTRON_VERSION" && -n "$NODE_VERSION" && -n "$UPSTREAM_VERSION" ]] || die "failed to detect bundled versions"
+if [[ -n "${KIMI_LINUX_VERSION:-}" ]]; then
+  APP_VERSION="$KIMI_LINUX_VERSION"
+else
+  APP_VERSION="$(node "$ROOT_DIR/scripts/linux-version.mjs" format "$UPSTREAM_VERSION" "${KIMI_LINUX_REVISION:-1}")"
+fi
+PARSED_LINUX="$(node "$ROOT_DIR/scripts/linux-version.mjs" parse "$APP_VERSION")"
+LINUX_UPSTREAM="$(printf '%s\n' "$PARSED_LINUX" | cut -f1)"
+LINUX_LEGACY="$(printf '%s\n' "$PARSED_LINUX" | cut -f3)"
+[[ "$LINUX_LEGACY" == "false" && "$LINUX_UPSTREAM" == "$UPSTREAM_VERSION" ]] || \
+  die "KIMI_LINUX_VERSION must be ${UPSTREAM_VERSION}-linux.N (got ${APP_VERSION})"
+info "Kimi Work $APP_VERSION (upstream $UPSTREAM_VERSION); Electron $ELECTRON_VERSION; Node $NODE_VERSION"
 
 ELECTRON_ARCHIVE="electron-v$ELECTRON_VERSION-linux-x64.zip"
 ELECTRON_BASE="https://github.com/electron/electron/releases/download/v$ELECTRON_VERSION"
@@ -146,7 +156,8 @@ unzip -q "$CACHE_DIR/$ELECTRON_ARCHIVE" -d "$STAGE_DIR"
 mv "$STAGE_DIR/electron" "$STAGE_DIR/kimi-work"
 
 info "Patching Kimi Work for Linux window management and updates"
-node "$ROOT_DIR/scripts/patch-asar.mjs" "$MAC_ASAR" "$STAGE_DIR/resources/app.asar" "$STAGE_DIR/kimi-work.png"
+KIMI_LINUX_VERSION="$APP_VERSION" node "$ROOT_DIR/scripts/patch-asar.mjs" \
+  "$MAC_ASAR" "$STAGE_DIR/resources/app.asar" "$STAGE_DIR/kimi-work.png"
 
 info "Staging the matching Linux Node runtime"
 mkdir -p "$WORK_DIR/node" "$STAGE_DIR/resources/resources/runtime"

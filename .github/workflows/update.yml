@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
     inputs:
       force:
-        description: Rebuild the current upstream version
+        description: Rebuild and bump the linux packaging revision
         type: boolean
         default: false
 
@@ -38,11 +38,17 @@ jobs:
         run: |
           upstream="$(node scripts/fetch-upstream.mjs version)"
           packaged="$(sed -n 's/^version: //p' latest-linux.yml)"
-          if [[ "$upstream" != "$packaged" || "$FORCE" == "true" ]] || \
-            ! gh release view "kimi-work-v$upstream" >/dev/null 2>&1; then
-            echo "changed=true" >> "$GITHUB_OUTPUT"
+          version="$(node scripts/linux-version.mjs next "$upstream" "$packaged" "${FORCE:-false}")"
+          if [[ -z "$version" ]] && ! gh release view "kimi-work-v$packaged" >/dev/null 2>&1; then
+            version="$packaged"
           fi
-          echo "version=$upstream" >> "$GITHUB_OUTPUT"
+          if [[ -n "$version" ]]; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            echo "version=$version" >> "$GITHUB_OUTPUT"
+          else
+            echo "version=$packaged" >> "$GITHUB_OUTPUT"
+          fi
+          echo "upstream=$upstream" >> "$GITHUB_OUTPUT"
 
       - name: Install native build tools
         if: steps.upstream.outputs.changed == 'true'
@@ -54,6 +60,7 @@ jobs:
         if: steps.upstream.outputs.changed == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
+          KIMI_LINUX_VERSION: ${{ steps.upstream.outputs.version }}
           KIMI_UPDATE_URL: https://github.com/${{ github.repository }}/releases/latest/download/
         run: |
           pnpm build
@@ -72,7 +79,7 @@ jobs:
           else
             gh release create "$tag" dist/*.AppImage latest-linux.yml \
               --latest --title "Kimi Work $VERSION for Linux" \
-              --notes "Unofficial Linux repackaging of Kimi Work $VERSION."
+              --notes "Unofficial Linux repackaging of Kimi Work ${VERSION%-linux.*} (packaging $VERSION)."
           fi
 
       - name: Commit update metadata

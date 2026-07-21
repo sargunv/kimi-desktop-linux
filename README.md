@@ -14,7 +14,9 @@ chmod +x kimi-work-*-x86_64.AppImage
 ```
 
 The AppImage checks this repository's public releases for updates. New upstream
-versions are checked daily and repackaged automatically.
+versions are checked daily and repackaged automatically. Linux packaging uses
+versions like `3.1.2-linux.1`; force-rebuilds bump the `-linux.N` revision so
+installed AppImages pick up patch-only changes.
 
 ## Status
 

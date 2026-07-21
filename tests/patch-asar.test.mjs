@@ -15,6 +15,8 @@ test("ASAR patcher contains fail-closed replacement counts", async () => {
   assert.match(source, /Menu\.setApplicationMenu\(null\)/);
   assert.match(source, /process\.platform === \"linux\"/);
   assert.match(source, /KIMI_UPDATE_TOKEN/);
+  assert.match(source, /allowPrerelease = true/);
+  assert.match(source, /KIMI_LINUX_VERSION/);
   assert.match(source, /vendor', 'npm'/);
   assert.match(source, /Tray\.isSupported\(\)/);
   assert.match(source, /if \(!tray\)/);
@@ -29,18 +31,18 @@ test("ASAR patcher contains fail-closed replacement counts", async () => {
 test("Linux update manifest matches its AppImage", async () => {
   const directory = await mkdtemp(join(tmpdir(), "kimi-update-test-"));
   try {
-    const appImage = join(directory, "kimi-work-1.2.3-x86_64.AppImage");
+    const appImage = join(directory, "kimi-work-1.2.3-linux.1-x86_64.AppImage");
     const manifest = join(directory, "latest-linux.yml");
     await writeFile(appImage, "test AppImage payload");
     await execFileAsync(process.execPath, [
       new URL("../scripts/write-update-manifest.mjs", import.meta.url).pathname,
       appImage,
-      "1.2.3",
+      "1.2.3-linux.1",
       manifest,
     ]);
     const yaml = await readFile(manifest, "utf8");
-    assert.match(yaml, /^version: 1\.2\.3$/m);
-    assert.match(yaml, /url: kimi-work-1\.2\.3-x86_64\.AppImage/);
+    assert.match(yaml, /^version: 1\.2\.3-linux\.1$/m);
+    assert.match(yaml, /url: kimi-work-1\.2\.3-linux\.1-x86_64\.AppImage/);
     assert.match(yaml, /size: 21/);
     assert.match(yaml, /sha512: [A-Za-z0-9+/]+=*/);
   } finally {

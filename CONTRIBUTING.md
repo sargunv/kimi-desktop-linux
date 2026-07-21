@@ -56,14 +56,21 @@ Useful environment variables:
 - `KIMI_BUILD_DIR` changes the unpacked build directory.
 - `KIMI_APP_DIR` selects the unpacked build packaged by `pnpm package`.
 - `KIMI_UPDATE_URL` embeds or overrides the AppImage update feed.
+- `KIMI_LINUX_VERSION` sets the full Linux packaging version (`x.y.z-linux.N`)
+  embedded in the app and AppImage name. Defaults to `$upstream-linux.1`, or
+  `$upstream-linux.$KIMI_LINUX_REVISION` when that revision is set.
+- `KIMI_LINUX_REVISION` selects the packaging revision when
+  `KIMI_LINUX_VERSION` is unset (default `1`).
 - `KIMI_UPSTREAM_MANIFEST_URL` overrides Kimi's upstream update manifest for
   testing.
 
 ## Releases
 
-The scheduled GitHub Actions workflow checks upstream daily. When Kimi publishes
-a new version, it builds and publishes a `kimi-work-vVERSION` GitHub Release and
-commits the matching `latest-linux.yml`.
+The scheduled GitHub Actions workflow checks upstream daily. Linux releases use
+`x.y.z-linux.N` versions (and `kimi-work-vVERSION` tags) so packaging-only
+rebuilds can bump `N` and be picked up by the AppImage updater. A new upstream
+`x.y.z` starts at `-linux.1`. Workflow `force` rebuilds bump `N`. The workflow
+publishes the GitHub Release and commits the matching `latest-linux.yml`.
 
 The packaging approach was informed by
 [`codex-desktop-linux`](https://github.com/ilysenko/codex-desktop-linux).
