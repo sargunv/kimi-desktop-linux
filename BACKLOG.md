@@ -58,11 +58,12 @@ each upstream release before changing bundled code.
 - [ ] **Port the selection toolbar.** Implement selected-text and selection-bounds
       discovery through AT-SPI2, including GNOME and KDE behavior under X11 and
       Wayland. It is currently disabled as unsupported.
-- [ ] **Add Linux arm64 builds.** Select arm64 Electron, Node, Python, uv,
-      WebBridge, gateway dependencies, and AppImage runtime assets, with native CI
-      coverage.
-- [x] **Define broader distribution support.** Supported: Linux x86_64 with glibc.
-      musl distributions (Alpine, etc.) are explicitly out of scope for now.
+- [x] **Add Linux arm64 builds.** Native aarch64 CI selects arm64 Electron, Node,
+      Python, uv, WebBridge, gateway dependencies, and AppImage runtime assets and
+      publishes `latest-linux-arm64.yml` beside the x86_64 feed.
+- [x] **Define broader distribution support.** Supported: Linux x86_64 and aarch64
+      with glibc. musl distributions (Alpine, etc.) are explicitly out of scope for
+      now.
 - [ ] **Expand native-module smoke tests.** Exercise the gateway's Sharp, Canvas,
       clipboard, Koffi, and sqlite-vec modules in addition to the existing daemon
       checks.

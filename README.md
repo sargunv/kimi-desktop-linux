@@ -4,13 +4,18 @@ An unofficial community build of [Kimi Work](https://www.kimi.com/) for Linux.
 
 ## Install
 
-Download the latest x86_64 AppImage from
+Download the latest AppImage for your CPU from
 [GitHub Releases](https://github.com/sargunv/kimi-desktop-linux/releases/latest),
 make it executable, and run it:
 
 ```sh
+# x86_64
 chmod +x kimi-work-*-x86_64.AppImage
 ./kimi-work-*-x86_64.AppImage
+
+# aarch64 / arm64
+chmod +x kimi-work-*-aarch64.AppImage
+./kimi-work-*-aarch64.AppImage
 ```
 
 The AppImage checks this repository's public releases for updates. New upstream
@@ -18,12 +23,12 @@ versions are checked daily and repackaged automatically.
 
 ## Status
 
-Kimi Work 3.1.2 has been tested on Linux x86_64. The interface, login,
-workspaces, Kimi Code, gateway, and WebBridge start successfully.
+Kimi Work 3.1.2 has been tested on Linux x86_64. Arm64 AppImages are built in
+CI on native runners; please report issues if something fails on your machine.
 
 Known limitations:
 
-- Only x86_64 Linux systems using glibc are supported. musl distributions are
+- Only glibc Linux on x86_64 and aarch64 is supported. musl distributions are
   not supported.
 - PPT Tools and the selection toolbar are currently unavailable.
 - Closing the window hides Kimi in the system tray when Electron reports tray
