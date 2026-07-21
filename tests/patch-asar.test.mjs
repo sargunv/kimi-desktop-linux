@@ -22,6 +22,8 @@ test("ASAR patcher contains fail-closed replacement counts", async () => {
   assert.match(source, /konsole --workdir/);
   assert.match(source, /kreadconfig6/);
   assert.match(source, /TerminalApplication/);
+  assert.match(source, /listLinuxWorkbenchOpenWithApplications/);
+  assert.match(source, /gio", \["launch"/);
 });
 
 test("Linux update manifest matches its AppImage", async () => {

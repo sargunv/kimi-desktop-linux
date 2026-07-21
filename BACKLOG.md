@@ -18,9 +18,11 @@ each upstream release before changing bundled code.
       then `konsole --workdir`, then common terminals / `x-terminal-emulator` /
       `xterm`. Exhaustive emulator matrices and async failure reporting are out
       of scope.
-- [ ] **Restore Chromium sandboxing.** The AppImage launcher currently passes
-      `--no-sandbox`. Use the user-namespace sandbox where supported or provide a
-      package format that can install the sandbox helper correctly.
+- [x] **Restore Chromium sandboxing.** Not viable for a portable AppImage: FUSE
+      mounts are nosuid so setuid `chrome-sandbox` cannot work, and user-namespace
+      sandboxing depends on distro policy (e.g. Ubuntu AppArmor) that AppImages
+      cannot install. Keep `--no-sandbox`; prefer a distro-native package for
+      higher-risk deployments (see SECURITY.md).
 - [ ] **Validate AppImage updates end to end.** Test discovery, download,
       replacement, relaunch, and rollback behavior using two real release versions.
 
@@ -40,9 +42,10 @@ each upstream release before changing bundled code.
       embeds upstream `icon.png` as the AppImage icon, `.DirIcon`, and hicolor
       entry. Multi-size hicolor polishing is optional; day-to-day icons work via the
       AppImage and host integration tools.
-- [ ] **Improve Open With.** Resolve MIME associations and application names from
-      desktop entries instead of offering only hardcoded file-manager and terminal
-      choices.
+- [x] **Improve Open With.** Best-effort: keep File manager / Terminal stubs and
+      list MIME handlers via `gio info` / `gio mime`, opening chosen apps with
+      `gio launch`. Works on modern desktops that ship GLib/`gio` (including
+      typical KDE installs).
 - [ ] **Add runtime dependency diagnostics.** Detect missing Git and other
       required host tools early. Remove the `lsof` dependency from stale WebBridge
       port recovery or report its absence clearly.
